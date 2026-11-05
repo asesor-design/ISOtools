@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#24508C"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
