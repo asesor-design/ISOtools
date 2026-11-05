@@ -10,6 +10,7 @@ Ejecutar con:  streamlit run app.py
 """
 import streamlit as st
 
+import acceso
 import control_documental as cd
 import estilos
 import paginas as pg
@@ -54,6 +55,9 @@ table.heat td.hm { height:58px; text-align:center; font-family:'IBM Plex Mono',m
 td.hm.hi { background:#F6D9D6; color:#7C221D; } td.hm.md { background:#F7E9C9; color:#6F5417; } td.hm.lo { background:#D8ECDF; color:#14523A; }
 </style>""", unsafe_allow_html=True)
 
+# Nada se muestra sin la contraseña (secreto [acceso] clave)
+acceso.verificar()
+
 P = pg.P
 P.update({
     "inicio": st.Page(pg.inicio, title="Inicio", icon=":material/home:", default=True),
@@ -83,6 +87,8 @@ with st.sidebar.form("buscar", clear_on_submit=True, border=False):
     texto = st.text_input("Buscar en los documentos", placeholder="Código, título o palabra")
     if st.form_submit_button("Buscar", width="stretch") and texto.strip():
         st.switch_page(P["documentos"], query_params={"q": texto.strip()})
+
+acceso.boton_salir()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

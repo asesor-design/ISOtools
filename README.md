@@ -45,19 +45,34 @@ notificar.py            Recordatorios por correo (GitHub Actions)
 docs/                   Notas de diseño de Personal habilitado
 ```
 
+## Contraseña de acceso
+
+ISOtools se publica como app **pública** de Streamlit (así no ocupa el único espacio privado de la cuenta),
+pero nadie ve ninguna página sin escribir la contraseña. Se configura en los secretos de la app:
+
+```toml
+[acceso]
+clave = "una-clave-larga-y-dificil"
+```
+
+- Sin ese bloque la app **no abre** (falla cerrada), para que un despliegue incompleto no quede expuesto.
+- Tras 5 intentos fallidos el ingreso se bloquea 60 segundos.
+- Para cambiar la clave basta con editar el secreto; todos deberán volver a ingresar.
+- Cámbiala cuando alguien con acceso deje la empresa.
+
 ## Publicar en Streamlit Community Cloud
 
-El plan gratuito permite **una app privada por cuenta**. ISOtools reemplaza a `gestion-de-datos`, así que:
+1. En https://share.streamlit.io ▸ **Create app** ▸ repositorio `asesor-design/ISOtools`, rama `main`,
+   archivo **`app.py`**.
+2. **Advanced settings** ▸ Python **3.13** y en *Secrets* pega:
+   - el bloque `[acceso]` con la contraseña, y
+   - el bloque `[gcp_service_account]` (el mismo que usa la app de certificados) para activar Personal habilitado.
+3. **Deploy**. Luego en **Settings ▸ Sharing** deja la app como **pública**: la contraseña la protege.
 
-1. En https://share.streamlit.io abre la app actual de `gestion-de-datos` ▸ **Settings ▸ Secrets** y
-   **copia todo el contenido** (lo vas a necesitar).
-2. En esa misma app: menú **⋮ ▸ Delete**. Los datos no se pierden: viven en Google Sheets y Drive.
-3. **Create app** ▸ repositorio `asesor-design/ISOtools`, rama `main`, archivo **`app.py`**.
-4. **Advanced settings** ▸ Python **3.13** y pega los secretos copiados en el paso 1.
-5. **Deploy**. Luego en **Settings ▸ Sharing** invita los correos autorizados.
-
-Para cambiar de app no hace falta tocar la hoja de cálculo ni la carpeta de Drive: los identificadores
-siguen en `ajustes.py`.
+**Si al elegir el repositorio aparece «You can only have one private app per workspace»:** las apps que
+salen de un repositorio privado nacen privadas, y ese espacio ya lo usa otra app. Para desplegar:
+cambia por un momento esa otra app a pública (Settings ▸ Sharing), despliega ISOtools, pásala a pública
+y devuelve la otra app a privada. Son un par de minutos.
 
 ### Recordatorios por correo
 
@@ -72,8 +87,8 @@ este repositorio, hay que cargar sus secretos aquí: **Settings ▸ Secrets and 
 | `SMTP_PASSWORD` | contraseña de aplicación |
 | `CORREO_ADMIN` | destinatario del consolidado (respaldo) |
 
-Después desactiva el workflow en `gestion-de-datos` (Actions ▸ Recordatorio de certificados ▸ Disable)
-para que no lleguen correos duplicados. Prueba local sin enviar nada: `python notificar.py --prueba`.
+Mientras la app `gestion-de-datos` siga en uso, deja el workflow activo **solo en uno** de los dos
+repositorios (Actions ▸ Recordatorio de certificados ▸ Disable en el otro) para que no lleguen correos duplicados. Prueba local sin enviar nada: `python notificar.py --prueba`.
 
 ## Ejecutar en su computador
 
