@@ -1,4 +1,18 @@
-__pycache__/
-*.pyc
-.venv/
+# Secretos: nunca deben llegar al repositorio
 .streamlit/secrets.toml
+*.json
+!.streamlit/secrets.toml.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Reportes generados
+reporte_documentos_*.csv

@@ -249,3 +249,215 @@ def descifrar(code: str, repo: Repositorio) -> tuple[list[dict], str]:
     else:
         veredicto = "Código bien formado y disponible: aún no lo usa ningún documento."
     return segs, veredicto
+
+
+# ==========================================================================================
+# ANÁLISIS TRANSVERSAL: tablas, riesgos, indicadores, calendario y responsabilidades
+# ==========================================================================================
+def tablas_con_seccion(doc: Doc):
+    """Cada tabla del documento con el título (##) de la sección donde está."""
+    seccion, sub, salida = "", "", []
+    lines = doc.body.splitlines()
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        if ln.startswith("## "):
+            seccion, sub = ln[3:].strip(), ""
+        elif ln.startswith("### "):
+            sub = ln[4:].strip()
+        if ln.startswith("|"):
+            block = []
+            while i < len(lines) and lines[i].startswith("|"):
+                block.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
+                i += 1
+            head = block[0]
+            filas = [dict(zip(head, r)) for r in block[2:]]
+            salida.append((seccion, sub, head, filas))
+            continue
+        i += 1
+    return salida
+
+
+NIVEL_ORDEN = {"ALTO": 0, "MEDIO": 1, "BAJO": 2}
+
+
+def riesgos(repo: "Repositorio") -> list[dict]:
+    """
+    Riesgos de la matriz unificada (EST-SGC-RIE-MAT-001) más los que declara cada
+    procedimiento en su sección «Matriz de riesgos y controles asociados».
+    """
+    salida = []
+    mat = repo.docs.get("EST-SGC-RIE-MAT-001")
+    if mat:
+        for seccion, _, head, filas in tablas_con_seccion(mat):
+            if "P × I" not in head:
+                continue
+            nombre = re.sub(r"\s*\(.*\)$", "", seccion)
+            for f in filas:
+                m = re.match(r"(\d+)\s*×\s*(\d+)\s*=\s*(\d+)", f["P × I"])
+                p, i, pxi = (int(x) for x in m.groups()) if m else (None, None, None)
+                salida.append({
+                    "Proceso": nombre, "Etapa": f["Etapa"], "Riesgo": f["Riesgo identificado"],
+                    "Tipo": f["Tipo"], "P": p, "I": i, "PxI": pxi, "Nivel": f["Nivel"],
+                    "Control": f["Control / prevención"], "Ejecutor": f["Ejecutor"],
+                    "Frecuencia": f["Frecuencia"], "Fuente": mat.codigo})
+    for d in repo.ordenados():
+        if d.codigo == "EST-SGC-RIE-MAT-001":
+            continue
+        for seccion, _, head, filas in tablas_con_seccion(d):
+            if not seccion.lower().startswith("matriz de riesgos"):
+                continue
+            for f in filas:
+                nivel = (f.get("Nivel") or f.get("Nivel inherente") or "").split(" ")[0]
+                salida.append({
+                    "Proceso": PROCS.get(d.proc, d.proc), "Etapa": d.titulo,
+                    "Riesgo": f.get("Riesgo identificado", ""), "Tipo": "",
+                    "P": None, "I": None, "PxI": None, "Nivel": nivel,
+                    "Control": f.get("Control aplicado") or f.get("Medida de control (automatizada)", ""),
+                    "Ejecutor": f.get("Ejecutor", d.dueno), "Frecuencia": "",
+                    "Fuente": d.codigo})
+    return salida
+
+
+def indicadores(repo: "Repositorio") -> list[dict]:
+    """Indicadores declarados en la sección «Indicadores de gestión» de cada documento."""
+    salida = []
+    for d in repo.ordenados():
+        dentro = False
+        for ln in d.body.splitlines():
+            if ln.startswith("## "):
+                dentro = ln[3:].lower().startswith("indicadores")
+                continue
+            if dentro and ln.startswith("- **"):
+                m = re.match(r"- \*\*(.+?):?\*\*:?\s*(.*)", ln)
+                if not m:
+                    continue
+                nombre, resto = m.group(1).rstrip(":"), m.group(2)
+                meta = ""
+                mm = re.search(r"Meta:\s*([^.]+(?:\.\d+)?)\.?\s*$", resto)
+                if mm:
+                    meta = mm.group(1).strip()
+                    resto = resto[:mm.start()].strip()
+                salida.append({"Documento": d.codigo, "Indicador": nombre,
+                               "Cálculo": resto.rstrip("."), "Meta": meta or "—",
+                               "Responsable": d.dueno})
+            elif ln.startswith("**Indicador de gestión:**"):
+                texto = ln.split(":**", 1)[1].strip()
+                meta = re.search(r"meta ([^)]+)", texto)
+                salida.append({"Documento": d.codigo, "Indicador": texto.split("(")[0].strip().capitalize(),
+                               "Cálculo": texto, "Meta": meta.group(1) if meta else "—",
+                               "Responsable": d.dueno})
+    return salida
+
+
+def meses_revision(doc: Doc) -> int:
+    """Frecuencia de revisión en meses según el propio documento (o 24 por defecto, DOC-PRO 5.6)."""
+    texto = norm(doc.revision)
+    if texto.startswith("anual"):
+        return 12
+    if "permanente" in texto:
+        return 0
+    m = re.search(r"cada (\d+) anos", texto)
+    return int(m.group(1)) * 12 if m else 24
+
+
+def calendario_revision(repo: "Repositorio", hoy) -> list[dict]:
+    """Próxima revisión de cada documento a partir de su fecha y su frecuencia."""
+    from datetime import datetime
+    salida = []
+    for d in repo.ordenados():
+        meses = meses_revision(d)
+        fecha = None
+        if d.fecha:
+            try:
+                fecha = datetime.strptime(d.fecha, "%d/%m/%Y").date()
+            except ValueError:
+                fecha = None
+        if meses == 0:
+            prox, estado = None, "Se actualiza con cada uso"
+        elif not fecha:
+            prox, estado = None, "Sin fecha de aprobación"
+        else:
+            y, m = divmod(fecha.month - 1 + meses, 12)
+            import calendar
+            dia = min(fecha.day, calendar.monthrange(fecha.year + y, m + 1)[1])
+            prox = fecha.replace(year=fecha.year + y, month=m + 1, day=dia)
+            faltan = (prox - hoy).days
+            estado = "Vencida" if faltan < 0 else ("Próxima (≤ 60 días)" if faltan <= 60 else "Al día")
+        salida.append({"Código": d.codigo, "Documento": d.titulo, "Versión": d.version,
+                       "Aprobado": fecha, "Frecuencia": d.revision, "Próxima revisión": prox,
+                       "Estado": estado, "Dueño": d.dueno})
+    return salida
+
+
+# Cargos del organigrama (EST-SGC-MAN-001, sección 8) y cómo aparecen escritos en los documentos
+CARGOS = {
+    "Representante Legal": ["representante legal"],
+    "Gerencia General": ["gerencia general", "gerente general"],
+    "Jefa de Operaciones": ["jefa de operaciones"],
+    "Supervisor de campo": ["supervisor de campo", "supervisores de campo"],
+    "Técnicos de campo": ["tecnicos de campo", "tecnico de campo", "personal operativo"],
+    "Contabilidad": ["contabilidad"],
+    "Gestión y Control": ["gestion y control"],
+}
+TODOS = ["todo el personal", "dueno del proceso", "duenos de cada proceso", "colaboradores"]
+
+
+def _menciona(texto: str, claves: list[str]) -> bool:
+    t = norm(texto)
+    return any(k in t for k in claves)
+
+
+def responsabilidades(repo: "Repositorio", cargo: str) -> dict:
+    """Todo lo que el sistema le asigna a un cargo, leído de los propios documentos."""
+    claves = CARGOS[cargo]
+    out = {"rol": "", "politicas": [], "tareas": [], "registros": [], "riesgos": [], "habilitantes": {},
+           "todos": []}
+    man = repo.docs.get("EST-SGC-MAN-001")
+    if man:
+        for _, _, head, filas in tablas_con_seccion(man):
+            if head and head[0] == "Cargo real":
+                for f in filas:
+                    if norm(f["Cargo real"]) == norm(cargo):
+                        out["rol"] = f["Rol dentro del SGC"]
+    for d in repo.ordenados():
+        # Políticas con responsable nombrado (manuales) y tablas de responsabilidades (políticas)
+        for seccion, _, head, filas in tablas_con_seccion(d):
+            if "Responsable" in head and ("Política" in head or "Responsabilidad" in head):
+                for f in filas:
+                    texto = f.get("Política") or f.get("Responsabilidad")
+                    fila = {"Documento": d.codigo, "Qué": texto, "Cláusula": f.get("Cláusula", "")}
+                    if _menciona(f["Responsable"], claves):
+                        out["politicas"].append(fila)
+                    elif _menciona(f["Responsable"], TODOS):
+                        out["todos"].append(fila)
+        # Responsables de procedimientos: «- **Cargo:** tarea»
+        dentro = False
+        for ln in d.body.splitlines():
+            if ln.startswith("## "):
+                dentro = norm(ln[3:]).startswith("responsable")
+                continue
+            m = re.match(r"- \*\*(.+?):\*\*\s*(.*)", ln) if dentro else None
+            if m and _menciona(m.group(1), claves):
+                out["tareas"].append({"Documento": d.codigo, "Qué": m.group(2)})
+            elif m and _menciona(m.group(1), TODOS):
+                out["todos"].append({"Documento": d.codigo, "Qué": m.group(2), "Cláusula": ""})
+    for r in repo.registros.values():
+        if _menciona(r.responsable, claves):
+            out["registros"].append(r)
+    out["riesgos"] = [x for x in riesgos(repo) if _menciona(x["Ejecutor"], claves)]
+    gdr = repo.docs.get("APO-THU-GDR-MAT-001")
+    if gdr:
+        for _, _, head, filas in tablas_con_seccion(gdr):
+            for f in filas:
+                if norm(f.get("Cargo", "")) == norm(cargo):
+                    out["habilitantes"] = {k: v for k, v in f.items() if k != "Cargo"}
+    # quitar duplicados de «todo el personal»
+    vistos, unicos = set(), []
+    for f in out["todos"]:
+        k = (f["Documento"], f["Qué"])
+        if k not in vistos:
+            vistos.add(k)
+            unicos.append(f)
+    out["todos"] = unicos
+    return out

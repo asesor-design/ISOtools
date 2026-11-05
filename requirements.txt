@@ -1,2 +1,10 @@
-streamlit>=1.46
-pandas>=2.0
+# Versiones fijadas. NO usar rangos abiertos (>=): cada reinicio instalaría lo
+# más nuevo que exista ese día y la app puede romperse sola sin tocar el código.
+# Requiere Python 3.13 en Streamlit (Settings ▸ Advanced ▸ Python version).
+
+streamlit==1.60.0
+gspread==6.2.1
+google-auth==2.56.2
+google-api-python-client==2.198.0
+pandas>=2.2,<3.0
+tzdata==2025.2
