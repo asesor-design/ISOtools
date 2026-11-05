@@ -461,3 +461,118 @@ def responsabilidades(repo: "Repositorio", cargo: str) -> dict:
             unicos.append(f)
     out["todos"] = unicos
     return out
+
+
+# ==========================================================================================
+# APRENDIZAJE: ISO 9001 en STARTEC, glosario y pasos de cada procedimiento
+# ==========================================================================================
+CAPITULOS = {
+    "4": ("Contexto de la organización", "Planificar",
+          "Entender dónde estamos: qué nos afecta, quién espera algo de nosotros y qué abarca el sistema."),
+    "5": ("Liderazgo", "Planificar",
+          "La dirección se compromete, fija la política de calidad y asigna quién responde por qué."),
+    "6": ("Planificación", "Planificar",
+          "Pensar antes de actuar: identificar riesgos y oportunidades y fijar objetivos medibles."),
+    "7": ("Apoyo", "Hacer",
+          "Tener lo necesario: personas competentes, recursos, comunicación y documentos bajo control."),
+    "8": ("Operación", "Hacer",
+          "Hacer el trabajo como se planificó: de la solicitud del cliente a la entrega, con proveedores controlados."),
+    "9": ("Evaluación del desempeño", "Verificar",
+          "Comprobar si funciona: medir indicadores, auditar y revisar el sistema con la dirección."),
+    "10": ("Mejora", "Actuar",
+           "Corregir lo que falló atacando la causa y mejorar de forma continua."),
+}
+CICLO = {
+    "Planificar": ("4, 5 y 6", "Definir qué queremos lograr y cómo."),
+    "Hacer": ("7 y 8", "Ejecutar lo planificado con los recursos adecuados."),
+    "Verificar": ("9", "Medir y revisar los resultados."),
+    "Actuar": ("10", "Corregir y mejorar."),
+}
+# Cláusulas que un documento cubre por su contenido aunque no las cite con número
+CLAUSULAS_IMPLICITAS = {
+    "EST-SGC-MAN-001": ["4.1", "4.2", "4.3", "4.4", "5.3"],
+    "EST-SGC-POL-001": ["5.1", "5.2"],
+    "EST-SGC-RIE-MAT-001": ["6.1"],
+    "EST-DIR-PLA-REG-001": ["9.3"],
+    "APO-THU-CER-INS-001": ["7.2"],
+    "APO-THU-GDR-MAT-001": ["7.2"],
+    "MIS-OPS-CHK-FOR-001": ["8.1", "8.5.1"],
+    "APO-COM-EVP-FOR-001": ["8.4"],
+    "APO-COM-EVP-REG-001": ["8.4"],
+    "APO-THU-CAP-REG-001": ["7.2"],
+}
+_CLAUSULA_RE = re.compile(r"\b(10|[4-9])\.(\d)(?:\.(\d))?\b")
+
+
+def clausulas(repo: "Repositorio") -> dict[str, dict[str, set[str]]]:
+    """capítulo → {código de documento → cláusulas que cubre}."""
+    out: dict[str, dict[str, set[str]]] = {c: {} for c in CAPITULOS}
+
+    def agregar(cap, doc, cl):
+        out.setdefault(cap, {}).setdefault(doc, set()).add(cl)
+
+    for d in repo.docs.values():
+        texto = d.body
+        for seccion, _, head, filas in tablas_con_seccion(d):
+            if "Cláusula" in head:
+                texto += " " + " ".join(f.get("Cláusula", "") for f in filas)
+        # solo números que aparecen junto a la palabra cláusula o en columnas Cláusula
+        candidatos = re.findall(r"(?:cl[aá]usulas?|ISO 9001)(?:[^.\n]|\.\d){0,50}", texto, flags=re.I)
+        for seccion, _, head, filas in tablas_con_seccion(d):
+            if "Cláusula" in head:
+                candidatos += [f.get("Cláusula", "") for f in filas]
+        for frag in candidatos:
+            for m in _CLAUSULA_RE.finditer(frag):
+                cl = ".".join(x for x in m.groups() if x)
+                agregar(m.group(1), d.codigo, cl)
+        for cl in CLAUSULAS_IMPLICITAS.get(d.codigo, []):
+            agregar(cl.split(".")[0], d.codigo, cl)
+    return out
+
+
+GLOSARIO_BASE = {
+    "Sistema de Gestión de Calidad (SGC)": "Conjunto de políticas, procesos, documentos y responsables con que STARTEC asegura que sus servicios cumplen lo que el cliente necesita.",
+    "ISO 9001:2015": "Norma internacional que define los requisitos de un sistema de gestión de calidad. Es la base de la certificación.",
+    "Ciclo PHVA": "Planificar, Hacer, Verificar y Actuar. Es la lógica de mejora continua sobre la que está construida la norma.",
+    "Información documentada": "Todo documento o registro que el sistema debe controlar: políticas, manuales, procedimientos, formatos y evidencias.",
+    "Registro": "Evidencia de que algo se hizo (un checklist firmado, un acta, una evaluación). Se archiva y no se modifica.",
+    "Formato": "Plantilla en blanco que, al llenarse, se convierte en registro.",
+    "Procedimiento": "Documento que explica paso a paso cómo se hace una actividad, quién la hace y qué evidencia deja.",
+    "Auditoría interna": "Revisión planificada e imparcial para comprobar si el sistema se cumple y funciona.",
+    "Hallazgo": "Resultado de una auditoría. Puede ser una no conformidad, una observación o una oportunidad de mejora.",
+    "Revisión por la dirección": "Reunión, al menos anual, en la que la alta dirección evalúa el sistema y decide mejoras y recursos.",
+    "Riesgo": "Efecto de la incertidumbre sobre un resultado esperado. Se califica por probabilidad e impacto.",
+    "Causa raíz": "Motivo de fondo de un problema. Se busca, por ejemplo, con la técnica de los cinco porqués.",
+    "Copia no controlada": "Cualquier copia impresa o descargada de un documento. Pierde validez frente a la versión digital vigente.",
+    "Documento habilitante": "Certificado cuya vigencia condiciona que una persona pueda ejecutar una tarea (alturas, riesgo eléctrico, médico).",
+    "Dueño del proceso": "Cargo que responde por que un proceso se cumpla y mejore.",
+    "EPP": "Equipo de protección personal: casco, guantes, gafas, calzado, arnés, entre otros.",
+    "LOTO": "Bloqueo y etiquetado de fuentes de energía antes de intervenir un equipo eléctrico.",
+}
+
+
+def glosario(repo: "Repositorio") -> list[dict]:
+    """Términos definidos en los vocabularios de los manuales más los términos base del SGC."""
+    vistos: dict[str, dict] = {}
+    for t, dfn in GLOSARIO_BASE.items():
+        vistos[norm(t)] = {"Término": t, "Definición": dfn, "Fuente": "ISOtools"}
+    for d in repo.ordenados():
+        for seccion, _, head, filas in tablas_con_seccion(d):
+            if head[:2] == ["Término", "Definición"]:
+                for f in filas:
+                    k = norm(f["Término"])
+                    if k not in vistos or vistos[k]["Fuente"] == "ISOtools":
+                        vistos[k] = {"Término": f["Término"], "Definición": f["Definición"], "Fuente": d.codigo}
+    return sorted(vistos.values(), key=lambda x: norm(x["Término"]))
+
+
+def pasos(doc: Doc) -> list[str]:
+    """Títulos de los pasos (###) dentro de la sección de descripción o instrucciones."""
+    salida, dentro = [], False
+    for ln in doc.body.splitlines():
+        if ln.startswith("## "):
+            dentro = norm(ln[3:]).startswith(("descripcion", "instrucciones", "verificacion previa"))
+            continue
+        if dentro and ln.startswith("### "):
+            salida.append(re.sub(r"^\d+(\.\d+)*\.?\s*", "", ln[4:]).strip())
+    return salida

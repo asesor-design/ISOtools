@@ -19,10 +19,20 @@ Une dos herramientas que antes estaban separadas:
 | Gestión | **Riesgos** | Matriz unificada + riesgos de cada procedimiento, con mapa de calor P × I y filtros por proceso, nivel y ejecutor. |
 | | **Indicadores y revisión** | Los 18 indicadores de los procedimientos con su meta; los que el sistema puede medir muestran su valor. Calendario de revisión documental. |
 | | **Mi cargo** | Para cada cargo: rol en el SGC, políticas, tareas, registros, riesgos que controla y certificados que necesita. Todo leído de los documentos. |
+| Aprende | **ISO 9001 en STARTEC** | El ciclo Planificar-Hacer-Verificar-Actuar y, por cada capítulo de la norma, qué pide en lenguaje simple y qué documentos de STARTEC lo cumplen. Útil para preparar auditorías. |
+| | **Glosario** | Términos de los manuales de STARTEC y básicos de ISO 9001, con buscador. |
+| | **Ponte a prueba** | 8 situaciones reales con su explicación y el documento donde está la regla. Para inducción y repaso. |
 | Personal habilitado | **Panel de control** | Vencimientos, cumplimiento por persona, expediente individual y auditoría. |
 | | **Cargar certificados** | Carga individual, por lotes o compartida (planilla IESS) a Drive, con vigencia calculada. |
 | | **Equipo** | Colaboradores, etiquetas, documentos exigibles y supervisores. |
 | Soporte | **Ayuda** | Cómo usar la app, reglas clave, canal de denuncias y a quién preguntar. |
+
+Además:
+
+- **Inicio ejecutivo**: indicadores clave, barras de salud del sistema y una lista de pendientes ordenada por urgencia, cada uno con su botón «Resolver».
+- **Didáctica en cada página**: un desplegable «¿Cómo se usa esta página?», el resumen «En pocas palabras» de cada documento y «Los pasos en un vistazo» de cada procedimiento.
+- **Exportaciones**: listado maestro en Excel, paquete completo para la revisión por la dirección (listado, calendario, indicadores, riesgos, registros y personal habilitado), ficha de responsabilidades por cargo y copia de consulta de cada documento.
+- **Identidad STARTEC**: logo en la cabecera y la barra lateral, y paleta tomada del logo (grafito, azul, naranja y amarillo). El logo está en `assets/`; para cambiarlo basta reemplazar esos archivos.
 
 Las páginas del sistema documental funcionan sin ninguna configuración. Personal habilitado necesita la
 cuenta de servicio de Google (ver abajo); sin ella, esas tres páginas lo indican y el resto sigue funcionando.
@@ -42,6 +52,8 @@ ajustes.py              Identificadores, vigencias, catálogos y requisitos  ←
 estilos.py              Identidad visual
 notificar.py            Recordatorios por correo (GitHub Actions)
 .github/workflows/      Ejecución diaria de los recordatorios
+acceso.py               Contraseña de ingreso
+assets/                 Logo e icono de STARTEC
 docs/                   Notas de diseño de Personal habilitado
 ```
 

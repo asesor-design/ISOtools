@@ -60,11 +60,75 @@ def enlazar(texto: str) -> str:
     return texto
 
 
-def encabezado(eyebrow: str, titulo: str, texto: str = "") -> None:
+def encabezado(eyebrow: str, titulo: str, texto: str = "", guia_pasos: list[str] | None = None) -> None:
+    """Título de página con una línea de contexto y, si se da, la guía «¿Cómo se usa esta página?»."""
     st.markdown(f'<div class="eyebrow">{eyebrow}</div>', unsafe_allow_html=True)
     st.header(titulo, anchor=False)
     if texto:
-        st.markdown(enlazar(texto), unsafe_allow_html=True)
+        st.markdown(f'<p class="bajada">{enlazar(texto)}</p>', unsafe_allow_html=True)
+    if guia_pasos:
+        guia(guia_pasos)
+
+
+def guia(pasos_: list[str], titulo: str = "¿Cómo se usa esta página?") -> None:
+    """Pasos numerados plegables: la ayuda está donde se necesita, sin estorbar a quien ya sabe."""
+    with st.expander(f":material/school: {titulo}"):
+        st.markdown('<ol class="guia">' + "".join(f"<li>{enlazar(p)}</li>" for p in pasos_) + "</ol>",
+                    unsafe_allow_html=True)
+
+
+def tarjetas(items: list[tuple]) -> None:
+    """Fila de indicadores ejecutivos: (valor, etiqueta, variante, ayuda)."""
+    html_ = '<div class="kpi-barra">'
+    for valor, etiqueta, variante, ayuda in items:
+        html_ += (f'<div class="kpi kpi--{variante}" title="{html.escape(ayuda)}">'
+                  f'<span class="kpi-valor">{valor}</span><span class="kpi-etiqueta">{etiqueta}</span>'
+                  f'<span class="kpi-ayuda">{html.escape(ayuda)}</span></div>')
+    st.markdown(html_ + "</div>", unsafe_allow_html=True)
+
+
+def barra_salud(titulo: str, pct: int, detalle: str) -> str:
+    nivel = "ok" if pct >= 85 else ("medio" if pct >= 60 else "bajo")
+    return (f'<div class="salud"><div class="salud-top"><b>{titulo}</b><span class="salud-pct {nivel}">{pct}%</span></div>'
+            f'<div class="salud-barra"><span class="{nivel}" style="width:{max(pct, 2)}%"></span></div>'
+            f'<small>{detalle}</small></div>')
+
+
+def a_excel(hojas: dict[str, pd.DataFrame]) -> bytes:
+    """Libro de Excel con una hoja por tabla, encabezados en negrita y columnas ajustadas."""
+    from io import BytesIO
+    from openpyxl.styles import Font, PatternFill
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+        for nombre, df in hojas.items():
+            df.to_excel(xw, sheet_name=nombre[:31], index=False)
+            ws = xw.sheets[nombre[:31]]
+            for c in ws[1]:
+                c.font = Font(bold=True, color="FFFFFF")
+                c.fill = PatternFill("solid", fgColor="25292D")
+            for col in ws.columns:
+                largo = max(len(str(c.value or "")) for c in col)
+                ws.column_dimensions[col[0].column_letter].width = min(max(10, largo + 2), 60)
+            ws.freeze_panes = "A2"
+    return buf.getvalue()
+
+
+def paquete_sgc() -> dict[str, pd.DataFrame]:
+    """Tablas del SGC para exportar: listado, registros, riesgos, indicadores y calendario."""
+    r = repo()
+    cal = sgc.calendario_revision(r, hoy())
+    return {
+        "Listado maestro": pd.DataFrame([{"Código": d.codigo, "Documento": d.titulo, "Tipo": d.tipo_nombre,
+                                          "Macroproceso": MACROS[d.macro], "Proceso": PROCS.get(d.proc, d.proc),
+                                          "Versión": d.version, "Fecha": d.fecha, "Dueño": d.dueno,
+                                          "Revisión": d.revision, "Original": d.drive_url} for d in r.ordenados()]),
+        "Calendario de revisión": pd.DataFrame(cal),
+        "Indicadores": pd.DataFrame(sgc.indicadores(r)),
+        "Riesgos": pd.DataFrame(sgc.riesgos(r)),
+        "Registros": pd.DataFrame([{"Código": x.codigo, "Registro": x.nombre, "Responsable": x.responsable,
+                                    "Retención": x.retencion, "Lo exige": ", ".join(x.origen)}
+                                   for x in sorted(r.registros.values(), key=lambda x: x.codigo)]),
+    }
 
 
 def ir_doc(code: str, label: str | None = None, **kw) -> None:
@@ -114,59 +178,111 @@ TAREAS = [
 
 def inicio() -> None:
     r = repo()
-    encabezado("ISOtools · STARTEC S.A.", "¿Qué necesita hacer hoy?",
-               "Elija una tarea y llegará directo a donde se resuelve. Para algo puntual use el "
-               "buscador de la barra lateral: encuentra códigos, títulos y cualquier palabra dentro de los documentos.")
-    cols = st.columns(3)
-    for i, (titulo, sub, destino, code) in enumerate(TAREAS):
-        with cols[i % 3].container(border=True):
-            st.markdown(f"**{titulo}**  \n<span class='muted'>{sub}</span>", unsafe_allow_html=True)
-            if destino == "doc":
-                ir_doc(code, label=f"Abrir {code}")
-            else:
-                st.page_link(P[destino], label=f"Ir a {P[destino].title}")
+    try:
+        import reglas
+        hora = reglas.ahora().hour
+    except Exception:
+        hora = 9
+    saludo = "Buenos días" if hora < 12 else ("Buenas tardes" if hora < 19 else "Buenas noches")
+    encabezado("Resumen ejecutivo", f"{saludo}. Así está el SGC hoy",
+               "Lo que requiere atención primero, luego los accesos a las tareas más frecuentes.")
 
-    st.subheader("Estado del sistema hoy", anchor=False)
+    if not st.session_state.get("bienvenida_vista"):
+        with st.container(border=True):
+            st.markdown("**¿Primera vez en ISOtools?** En tres pasos:")
+            c1, c2, c3 = st.columns(3)
+            c1.markdown('<div class="paso"><span>1</span><b>Encuentre</b>Busque cualquier documento con el buscador '
+                        'de la izquierda o entre por una tarea de «Accesos rápidos».</div>', unsafe_allow_html=True)
+            c2.markdown('<div class="paso"><span>2</span><b>Entienda</b>Cada documento trae un resumen, sus pasos en '
+                        'un vistazo y a quién afecta. En «Mi cargo» ve lo que le toca a usted.</div>', unsafe_allow_html=True)
+            c3.markdown('<div class="paso"><span>3</span><b>Aprenda</b>La sección «Aprende» explica ISO 9001 con '
+                        'ejemplos de STARTEC y tiene una prueba rápida para la inducción.</div>', unsafe_allow_html=True)
+            if st.button("Entendido, no volver a mostrar", key="ok_bienvenida"):
+                st.session_state["bienvenida_vista"] = True
+                st.rerun()
+
     cal = sgc.calendario_revision(r, hoy())
-    altos = [x for x in sgc.riesgos(r) if x["Nivel"] == "ALTO"]
+    riesgos_ = sgc.riesgos(r)
+    altos = [x for x in riesgos_ if x["Nivel"] == "ALTO"]
+    con_fecha = [c for c in cal if c["Próxima revisión"]]
+    al_dia = [c for c in con_fecha if c["Estado"] == "Al día"]
     vencer = [c for c in cal if c["Estado"] in ("Vencida", "Próxima (≤ 60 días)")]
     sin_fecha = [c for c in cal if c["Estado"] == "Sin fecha de aprobación"]
+    revisables = [c for c in cal if c["Estado"] != "Se actualiza con cada uso"]
     m = personal_habilitado()
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Documentos controlados", len(r.docs), help="Archivos del SGC en el repositorio")
-    c2.metric("Riesgos en nivel ALTO", len(altos), help="Matriz unificada y matrices de cada procedimiento")
-    c3.metric("Revisiones por vencer", len(vencer), help="Vencidas o en los próximos 60 días")
-    if m:
-        c4.metric("Personal en regla", f'{m["cobertura"]["porcentaje"]}%',
-                  help="Colaboradores activos con todo su expediente vigente (APO-THU-CER-INS-001)")
-    else:
-        c4.metric("Personal en regla", "—", help="Requiere la conexión con Google de Personal habilitado")
+    pct_fecha = round(len(con_fecha) / len(revisables) * 100) if revisables else 0
+    pct_cal = round(len(al_dia) / len(revisables) * 100) if revisables else 0
+    pct_riesgo = round(sum(1 for x in riesgos_ if x["Ejecutor"]) / len(riesgos_) * 100) if riesgos_ else 0
 
-    avisos = []
-    if m and (m["vencidos"] or m["revision"] or m["renovar"]):
-        avisos.append(("error" if m["vencidos"] else "warning",
-                       f'Personal habilitado: {m["vencidos"]} certificado(s) vencido(s), '
-                       f'{m["renovar"]} por renovar en 30 días.', "hab_control"))
-    if sin_fecha:
-        avisos.append(("warning", f"{len(sin_fecha)} documento(s) sin fecha de aprobación: no se puede calcular "
-                                  "su próxima revisión (EST-SGC-DOC-PRO-001, 5.6).", "indicadores"))
-    faltan = r.sin_archivo()
-    if faltan:
-        avisos.append(("warning", f"{len(faltan)} código(s) citados que no existen: "
-                                  + ", ".join(faltan) + ".", "listado"))
-    for tipo, texto, destino in avisos:
-        with st.container(border=True):
-            a, b = st.columns([5, 1], vertical_alignment="center")
-            (a.error if tipo == "error" else a.warning)(texto)
-            b.page_link(P[destino], label="Revisar")
-    if not m:
-        st.caption("La sección Personal habilitado se activa al configurar la cuenta de servicio de Google "
-                   "en los secretos de la app. El resto de ISOtools funciona sin ella.")
+    tarjetas([
+        (len(r.docs), "Documentos controlados", "neutro", "Archivos del SGC publicados en ISOtools"),
+        (f"{pct_cal}%", "Revisiones al día", "acento", "Documentos con fecha y revisión vigente sobre el total revisable"),
+        (len(altos), "Riesgos en nivel ALTO", "critico", "De la matriz unificada y de los procedimientos"),
+        (f'{m["cobertura"]["porcentaje"]}%' if m else "—", "Personal en regla",
+         "ok" if m else "historico", "Colaboradores activos con todo su expediente vigente"
+         if m else "Se activa al conectar Personal habilitado con Google"),
+    ])
 
-    st.subheader("Mapa del sistema", anchor=False)
-    st.write("Todo nace de la Política de Calidad; cada manual deriva de ella y se desarrolla en procedimientos, "
-             "instructivos, formatos y registros.")
+    izq, der = st.columns([1.15, 1], gap="large")
+    with izq:
+        st.markdown('<div class="rotulo"><h2>Salud del sistema</h2><p>Qué tan completo y al día está el SGC</p></div>',
+                    unsafe_allow_html=True)
+        st.markdown(
+            barra_salud("Documentos con fecha de aprobación", pct_fecha,
+                        f"{len(con_fecha)} de {len(revisables)}. Sin fecha no se puede programar su revisión.")
+            + barra_salud("Calendario de revisión al día", pct_cal,
+                          "Meta ≥ 95% según EST-SGC-DOC-PRO-001.")
+            + barra_salud("Riesgos con responsable del control", pct_riesgo,
+                          f"{len(riesgos_)} riesgos identificados en total.")
+            + (barra_salud("Personal con expediente completo", m["cobertura"]["porcentaje"],
+                           f'{m["cobertura"]["personas_ok"]} de {m["cobertura"]["personas"]} colaboradores activos.')
+               if m else ""), unsafe_allow_html=True)
+    with der:
+        st.markdown('<div class="rotulo"><h2>Requiere atención</h2><p>Ordenado por urgencia</p></div>',
+                    unsafe_allow_html=True)
+        avisos = []
+        if m and m["vencidos"]:
+            avisos.append(("critico", f'{m["vencidos"]} certificado(s) vencido(s)',
+                           "Esas personas no pueden ejecutar tareas de riesgo.", "hab_control"))
+        if m and (m["renovar"] or m["revision"]):
+            avisos.append(("alerta", f'{m["renovar"] + m["revision"]} certificado(s) por renovar',
+                           "Vencen en los próximos 30 días o por exigencia del cliente.", "hab_control"))
+        if vencer:
+            avisos.append(("alerta", f"{len(vencer)} documento(s) con revisión vencida o próxima",
+                           ", ".join(c["Código"] for c in vencer[:4]), "indicadores"))
+        if sin_fecha:
+            avisos.append(("alerta", f"{len(sin_fecha)} documento(s) sin fecha de aprobación",
+                           "Registre la fecha para programar su revisión.", "indicadores"))
+        faltan = r.sin_archivo()
+        if faltan:
+            avisos.append(("info", f"{len(faltan)} código(s) citado(s) que no existen",
+                           ", ".join(faltan), "listado"))
+        if not m:
+            avisos.append(("info", "Personal habilitado sin conectar",
+                           "Configure la cuenta de servicio de Google en los secretos de la app.", "hab_control"))
+        if not avisos:
+            st.success("Todo al día. No hay pendientes.")
+        for nivel, titulo, detalle, destino in avisos:
+            with st.container(border=True):
+                a, b = st.columns([3.2, 1.6], vertical_alignment="center")
+                a.markdown(f'<div class="pendiente {nivel}"><b>{titulo}</b><small>{html.escape(detalle)}</small></div>',
+                           unsafe_allow_html=True)
+                b.page_link(P[destino], label="Resolver")
+
+    st.markdown('<div class="rotulo"><h2>Accesos rápidos</h2><p>Las tareas más frecuentes, a un clic</p></div>',
+                unsafe_allow_html=True)
+    cols = st.columns(4)
+    for i, (titulo, sub, destino, code) in enumerate(TAREAS):
+        with cols[i % 4].container(border=True):
+            st.markdown(f'<div class="tarea"><b>{titulo}</b><small>{sub}</small></div>', unsafe_allow_html=True)
+            if destino == "doc":
+                ir_doc(code, label=code, icon=":material/description:")
+            else:
+                st.page_link(P[destino], label=P[destino].title, icon=P[destino].icon)
+
+    st.markdown('<div class="rotulo"><h2>Mapa del sistema</h2><p>Todo nace de la Política de Calidad y se '
+                'desarrolla en manuales, procedimientos, formatos y registros</p></div>', unsafe_allow_html=True)
     cols = st.columns(3)
     for col, mac in zip(cols, MACRO_ORDER):
         with col.container(border=True):
@@ -194,7 +310,11 @@ def documentos() -> None:
         ficha(code)
         return
     encabezado("Sistema documental", "Documentos del SGC",
-               "Busque por código, título o palabra, o recorra el árbol por macroproceso.")
+               "Busque por código, título o palabra, o recorra el árbol por macroproceso.",
+               ["Escriba una palabra (por ejemplo «arnés» o «factura»): busca dentro de todos los documentos, sin importar tildes.",
+                "O recorra el árbol: cada macroproceso muestra sus manuales y, debajo, los documentos que los desarrollan.",
+                "En la ficha, «En pocas palabras» resume el documento y «Los pasos en un vistazo» muestra el procedimiento.",
+                "Los códigos dentro del texto son enlaces: tóquelos para saltar al documento citado."])
     nuevo = st.text_input("Buscar", value=q, placeholder="Ej.: checklist, arnés, proveedor, APO-THU",
                           label_visibility="collapsed")
     if nuevo.strip() != q:
@@ -262,14 +382,25 @@ def ficha(code: str) -> None:
     <div><span>Fecha</span><b>{d.fecha or "—"}</b></div>
   </div>
 </div>""", unsafe_allow_html=True)
-    st.info(d.resumen)
-    b1, b2, b3 = st.columns([1.5, 1.3, 2.2])
-    b1.link_button(f"Abrir original en Drive (.{d.formato})", d.drive_url, type="primary", width="stretch")
+    st.markdown(f'<div class="resumen"><span>En pocas palabras</span>{enlazar(html.escape(d.resumen))}</div>',
+                unsafe_allow_html=True)
+    lista_pasos = sgc.pasos(d)
+    if lista_pasos:
+        etiqueta = "Lo que se verifica" if d.tipo == "FOR" else "Los pasos en un vistazo"
+        st.markdown(f'<div class="flujo-tit">{etiqueta}</div><div class="flujo">' + "".join(
+            f'<div class="flujo-paso"><span>{i}</span>{html.escape(t)}</div>' for i, t in enumerate(lista_pasos, 1))
+            + "</div>", unsafe_allow_html=True)
+    b1, b2, b3, b4 = st.columns([1.5, 1.1, 1.1, 1.6])
+    b1.link_button(f"Abrir original en Drive (.{d.formato})", d.drive_url, type="primary", width="stretch",
+                   icon=":material/open_in_new:")
+    b3.download_button("Descargar texto", data=(f"# {d.codigo} · {d.titulo}\n\nVersión {d.version}\n\n" + d.body).encode(),
+                       file_name=f"{d.codigo}.md", mime="text/markdown", width="stretch", icon=":material/download:",
+                       help="Copia de consulta en Markdown. Recuerde: toda copia descargada es «no controlada».")
     if d.padre in r.docs:
         with b2:
             ir_doc(d.padre, label="↑ Documento superior")
     if code in ("APO-THU-CER-INS-001", "APO-THU-GDR-MAT-001"):
-        with b3:
+        with b4:
             st.page_link(P["hab_control"], label="Ver el estado real del personal →")
 
     izq, der = st.columns([3, 1.15], gap="large")
@@ -310,7 +441,11 @@ def ficha(code: str) -> None:
 def listado() -> None:
     r = repo()
     encabezado("EST-SGC-DOC-REG-001", "Listado maestro de documentos",
-               "Versión vigente, dueño, frecuencia y próxima revisión de cada documento. Seleccione una fila para abrirlo.")
+               "Versión vigente, dueño, frecuencia y próxima revisión de cada documento. Seleccione una fila para abrirlo.",
+               ["Filtre por macroproceso o tipo con los botones de arriba; puede marcar varios.",
+                "Toque una fila para abrir la ficha completa del documento.",
+                "El enlace «Drive ↗» abre el archivo original controlado.",
+                "Descargue el listado en Excel para auditorías o para la revisión por la dirección."])
     c1, c2 = st.columns(2)
     macros = c1.pills("Macroproceso", MACRO_ORDER, format_func=lambda m: f"{m} · {MACROS[m]}", selection_mode="multi")
     tipos = c2.pills("Tipo", [t for t in TYPE_ORDER if any(d.tipo == t for d in r.docs.values())],
@@ -324,7 +459,11 @@ def listado() -> None:
                       height=min(36 * (len(df) + 1) + 4, 760),
                       column_config={"Original": st.column_config.LinkColumn("Original", display_text="Drive ↗"),
                                      "Próxima revisión": st.column_config.DateColumn(format="DD/MM/YYYY")})
-    st.caption(f"{len(docs)} de {len(r.docs)} documentos")
+    a, b = st.columns([3, 1.2], vertical_alignment="center")
+    a.caption(f"{len(docs)} de {len(r.docs)} documentos")
+    b.download_button("Descargar en Excel", data=a_excel({"Listado maestro": df}), width="stretch",
+                      file_name="listado_maestro_SGC.xlsx", icon=":material/download:",
+                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if ev.selection.rows:
         st.switch_page(P["documentos"], query_params={"doc": docs[ev.selection.rows[0]].codigo})
 
@@ -343,7 +482,11 @@ def registros() -> None:
     encabezado("Cláusula 7.5.3 · Retención", "Registros y tiempos de retención",
                "Cada registro que los documentos ordenan llevar, quién lo archiva y cuánto tiempo se conserva. "
                "Los códigos subrayados tienen plantilla en el repositorio; los punteados se generan en el día a día "
-               "(órdenes de trabajo, facturas, actas) o aún no tienen plantilla.")
+               "(órdenes de trabajo, facturas, actas) o aún no tienen plantilla.",
+               ["Un registro es la evidencia de que algo se hizo: no se modifica y se conserva el tiempo indicado.",
+                "Filtre por responsable para ver lo que archiva cada área.",
+                "La columna «Lo exige» indica el documento que ordena llevar ese registro.",
+                "Cumplido el tiempo de retención, la disposición final se documenta (APO-ADM-MAN-001, política 4)."])
     resp = sorted({x.responsable for x in r.registros.values()})
     filtro = st.pills("Responsable del archivo", resp, selection_mode="multi")
     regs = [x for x in sorted(r.registros.values(), key=lambda x: x.codigo) if not filtro or x.responsable in filtro]
@@ -360,7 +503,11 @@ def riesgos() -> None:
     todos = sgc.riesgos(r)
     encabezado("EST-SGC-RIE-MAT-001 · Cláusula 6.1", "Riesgos y controles",
                "La matriz unificada y los riesgos que declara cada procedimiento, en un solo lugar. "
-               "Filtre por proceso, nivel o responsable del control.")
+               "Filtre por proceso, nivel o responsable del control.",
+               ["Cada riesgo se califica con Probabilidad × Impacto (1, 3 o 5). 15 = ALTO, 5 a 9 = MEDIO, 3 = BAJO.",
+                "El mapa de calor muestra dónde se concentran: arriba a la derecha está lo más grave.",
+                "Use los filtros para ver los riesgos de su proceso o los controles que usted ejecuta.",
+                "Si un control falla, se trata como no conformidad (EST-SGC-NCF-PRO-001)."])
     c1, c2, c3 = st.columns(3)
     procs = c1.multiselect("Proceso", sorted({x["Proceso"] for x in todos}))
     niveles = c2.pills("Nivel", ["ALTO", "MEDIO", "BAJO"], selection_mode="multi")
@@ -407,7 +554,11 @@ def indicadores() -> None:
     r = repo()
     encabezado("Cláusulas 9.1 y 9.3", "Indicadores y revisión documental",
                "Todos los indicadores que fijan los procedimientos, con su meta. Los que el sistema puede medir solo "
-               "muestran su valor actual; el resto se registra en el acta de revisión por la dirección (EST-DIR-PLA-REG-001).")
+               "muestran su valor actual; el resto se registra en el acta de revisión por la dirección (EST-DIR-PLA-REG-001).",
+               ["Un indicador mide si un proceso cumple su objetivo; la meta es el valor mínimo aceptable.",
+                "«Valor actual» se calcula solo cuando el dato vive en ISOtools; el resto se mide en cada proceso.",
+                "El calendario indica cuándo toca revisar cada documento según su frecuencia.",
+                "Antes de la revisión por la dirección descargue el paquete en Excel: trae todo junto."])
     cal = sgc.calendario_revision(r, hoy())
     con_fecha = [c for c in cal if c["Próxima revisión"]]
     al_dia = sum(c["Estado"] == "Al día" for c in con_fecha)
@@ -438,6 +589,20 @@ def indicadores() -> None:
     st.caption("Para los documentos sin fecha de aprobación, registre la fecha en su archivo y en el encabezado "
                "del Markdown (campo «fecha») y el calendario se completará solo.")
 
+    st.markdown('<div class="rotulo"><h2>Paquete para la revisión por la dirección</h2>'
+                '<p>Cláusula 9.3 · todo lo que pide el acta EST-DIR-PLA-REG-001 en un solo archivo</p></div>',
+                unsafe_allow_html=True)
+    hojas = paquete_sgc()
+    if m:
+        hojas = {"Personal habilitado": pd.DataFrame([{
+            "Colaboradores activos": m["cobertura"]["personas"], "Con expediente completo": m["cobertura"]["personas_ok"],
+            "% en regla": m["cobertura"]["porcentaje"], "Certificados vencidos": m["vencidos"],
+            "Por renovar (30 días)": m["renovar"]}]), **hojas}
+    st.download_button("Descargar paquete en Excel", data=a_excel(hojas), type="primary",
+                       file_name=f"paquete_revision_direccion_{hoy().isoformat()}.xlsx", icon=":material/download:",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.caption("Incluye: " + ", ".join(hojas) + ".")
+
 
 # ------------------------------------------------------------------------------ MI CARGO
 def mi_cargo() -> None:
@@ -445,7 +610,11 @@ def mi_cargo() -> None:
     encabezado("Cláusula 5.3 · Roles y responsabilidades", "Lo que le toca a cada cargo",
                "Elija un cargo y verá todo lo que el sistema le asigna, leído directamente de los documentos: "
                "su rol, las políticas que debe cumplir, sus tareas en los procedimientos, los registros que archiva, "
-               "los riesgos que controla y los certificados que necesita para trabajar.")
+               "los riesgos que controla y los certificados que necesita para trabajar.",
+               ["Elija su cargo en los botones.",
+                "Recorra las pestañas: cada una muestra una parte de sus responsabilidades.",
+                "Toque un código para abrir el documento y leer el detalle.",
+                "Descargue su ficha para la inducción o para tenerla a mano."])
     cargo = st.pills("Cargo", list(sgc.CARGOS), default="Supervisor de campo", selection_mode="single")
     if not cargo:
         return
@@ -497,13 +666,27 @@ def mi_cargo() -> None:
     with t6:
         lista(x["todos"], "—")
 
+    ficha_md = [f"# {cargo} · responsabilidades en el SGC de STARTEC S.A.", "", f"**Rol:** {x['rol']}", "",
+                "## Políticas a mi cargo"] + [f"- {f['Qué']} ({f['Documento']})" for f in x["politicas"]] + \
+               ["", "## Tareas en procedimientos"] + [f"- {f['Qué']} ({f['Documento']})" for f in x["tareas"]] + \
+               ["", "## Registros que archivo"] + [f"- {g.codigo} · {g.nombre} · {g.retencion}" for g in x["registros"]] + \
+               ["", "## Controles de riesgo que ejecuto"] + [f"- [{f['Nivel']}] {f['Riesgo']} → {f['Control']}" for f in x["riesgos"]] + \
+               ["", "## Certificados que necesito"] + [f"- {k}: {v}" for k, v in x["habilitantes"].items() if v and v != "No"]
+    st.download_button(f"Descargar la ficha de {cargo}", data="\n".join(ficha_md).encode(),
+                       file_name=f"responsabilidades_{cargo.replace(' ', '_')}.md", mime="text/markdown",
+                       icon=":material/download:")
+
 
 # ------------------------------------------------------------------------------ CÓDIGOS
 def codigos() -> None:
     r = repo()
     encabezado("EST-SGC-DOC-PRO-001 · Sección 5.1", "Cómo se leen los códigos",
                "Todo documento se identifica con la estructura **MACROPROCESO-PROCESO-(SUBPROCESO)-TIPO-SECUENCIAL**. "
-               "Escriba un código para descifrarlo, o arme uno nuevo con el generador.")
+               "Escriba un código para descifrarlo, o arme uno nuevo con el generador.",
+               ["Lea el código de izquierda a derecha: área grande (macroproceso), proceso, tema (opcional), tipo y número.",
+                "Escriba cualquier código en el descifrador: le dice qué significa cada parte y si existe.",
+                "Para un documento nuevo elija proceso, tema y tipo: el generador propone el número libre.",
+                "Luego cree el archivo siguiendo el README y regístrelo en el listado maestro."])
     code = st.text_input("Descifrar un código", value="MIS-OPS-CHK-FOR-001")
     segs, veredicto = descifrar(code, r)
     if segs:
@@ -582,3 +765,124 @@ def ayuda() -> None:
 | Aprobación de presupuestos, proveedores nuevos, recursos | **Gerencia General** |
 """)
     st.link_button("Abrir la carpeta iso en Google Drive", DRIVE_FOLDER)
+
+
+# ------------------------------------------------------------------------------ APRENDE
+def iso9001() -> None:
+    r = repo()
+    encabezado("Aprende · ISO 9001:2015", "ISO 9001 explicada con los documentos de STARTEC",
+               "La norma se organiza en capítulos del 4 al 10 que siguen el ciclo Planificar, Hacer, Verificar y "
+               "Actuar. Aquí verá qué pide cada capítulo, en lenguaje simple, y qué documentos de STARTEC lo cumplen.",
+               ["Lea el ciclo de arriba: es la lógica de toda la norma.",
+                "Abra un capítulo para ver qué pide y con qué documentos lo cumple STARTEC.",
+                "Toque un código para leer ese documento.",
+                "Útil para preparar auditorías: muestra dónde está la evidencia de cada cláusula."])
+    st.markdown('<div class="ciclo">' + "".join(
+        f'<div class="ciclo-fase f{i}"><span>{i}</span><b>{fase}</b><small>Capítulos {caps}</small><p>{txt}</p></div>'
+        for i, (fase, (caps, txt)) in enumerate(sgc.CICLO.items(), 1)) + "</div>", unsafe_allow_html=True)
+    st.caption("Al terminar «Actuar» el ciclo vuelve a empezar: así funciona la mejora continua.")
+
+    mapa = sgc.clausulas(r)
+    for cap, (nombre, fase, txt) in sgc.CAPITULOS.items():
+        docs = mapa.get(cap, {})
+        with st.expander(f"**Capítulo {cap} · {nombre}** · {fase} · {len(docs)} documento(s)", expanded=cap == "8"):
+            st.markdown(f"**Qué pide, en simple:** {txt}")
+            if not docs:
+                st.warning("Ningún documento cita este capítulo.")
+                continue
+            filas = []
+            for code in sorted(docs, key=lambda c: (sgc.MACRO_ORDER.index(c[:3]), c)):
+                cls = sorted(docs[code], key=lambda x: [int(n) for n in x.split(".")])
+                nota = " (exclusión declarada de diseño)" if code == "EST-SGC-MAN-001" and "8.3" in cls else ""
+                filas.append(f"| {link(code)} | {html.escape(r.docs[code].titulo)} | {', '.join(cls)}{nota} |")
+            st.markdown("| Documento | Título | Cláusulas que cubre |\n|---|---|---|\n" + "\n".join(filas),
+                        unsafe_allow_html=True)
+
+
+def glosario() -> None:
+    r = repo()
+    terminos = sgc.glosario(r)
+    encabezado("Aprende · Vocabulario", "Glosario del SGC",
+               f"{len(terminos)} términos: los que definen los propios manuales de STARTEC y los básicos de ISO 9001. "
+               "Úselo cuando un documento use una palabra que no conoce.")
+    q = st.text_input("Buscar un término", placeholder="Ej.: no conformidad, riesgo, registro")
+    letras = sorted({sgc.norm(t["Término"])[0].upper() for t in terminos})
+    letra = st.pills("Inicial", letras, selection_mode="single")
+    sel = [t for t in terminos if (not q or sgc.norm(q) in sgc.norm(t["Término"] + " " + t["Definición"]))
+           and (not letra or sgc.norm(t["Término"]).upper().startswith(letra))]
+    if not sel:
+        st.info("No hay términos con ese criterio.")
+    cols = st.columns(2)
+    for i, t in enumerate(sel):
+        with cols[i % 2].container(border=True):
+            fuente = "Definición general" if t["Fuente"] == "ISOtools" else f"Definido en {link(t['Fuente'])}"
+            st.markdown(f'<div class="termino"><b>{html.escape(t["Término"])}</b><p>{html.escape(t["Definición"])}</p>'
+                        f'<small>{fuente}</small></div>', unsafe_allow_html=True)
+
+
+PREGUNTAS = [
+    ("Un técnico llega al sitio y falta el arnés. ¿Puede empezar el trabajo en altura?",
+     ["Sí, si el supervisor lo autoriza verbalmente", "No: sin checklist completo y firmado el trabajo no se inicia",
+      "Sí, si el cliente lo pide con urgencia"], 1, "MIS-OPS-EJE-PRO-001",
+     "El checklist previo debe estar firmado y todas sus verificaciones cumplir. Si algo falla, se decide con la Jefa de Operaciones y queda registrado."),
+    ("¿En cuánto tiempo se debe reportar una no conformidad?",
+     ["Dentro de 3 días hábiles", "Al final del mes", "Solo cuando la detecta una auditoría"], 0, "EST-SGC-NCF-PRO-001",
+     "Cualquier colaborador la reporta a Gestión y Control, que la registra dentro de los 3 días hábiles."),
+    ("Un colaborador tiene su certificado de riesgo eléctrico en rojo. ¿Qué significa?",
+     ["Que vence en menos de 30 días", "Que está vencido o no cargado: no puede ejecutar labores de riesgo",
+      "Que debe renovarlo el próximo año"], 1, "APO-THU-CER-INS-001",
+     "Rojo es vencido o ausente: está prohibido trabajar hasta actualizarlo. Amarillo es «vence en menos de 30 días»."),
+    ("Necesita un proveedor que no está en la lista aprobada por una urgencia. ¿Qué hace?",
+     ["Lo contrata y lo informa después", "Pide aprobación expresa y documentada a la Gerencia General antes de contratar",
+      "Busca otra cotización y contrata la más barata"], 1, "APO-COM-EVP-PRO-001",
+     "Las excepciones existen, pero solo con aprobación escrita de la Gerencia General antes de contratar."),
+    ("Imprimió un procedimiento hace un año. ¿Puede seguir usándolo?",
+     ["Sí, mientras esté legible", "Solo si nadie lo ha cambiado", "No sin verificar: toda copia impresa es «no controlada»"], 2,
+     "EST-SGC-DOC-PRO-001", "Solo vale la versión digital vigente del repositorio. Confirme la versión antes de usar una copia."),
+    ("Un proveedor le ofrece un regalo por adjudicarle un contrato. ¿Qué indica la política?",
+     ["Aceptarlo si es de bajo valor", "Rechazarlo: está prohibido recibir obsequios de clientes o proveedores",
+      "Aceptarlo y declararlo a fin de año"], 1, "EST-DIR-GOB-POL-001",
+     "La Política Antisoborno prohíbe solicitar o recibir obsequios, comisiones o invitaciones de clientes y proveedores."),
+    ("¿Quién no puede auditar el proceso de Gestión y Control?",
+     ["La Gerencia General", "Un auditor externo", "Gestión y Control"], 2, "EST-SGC-AUD-PRO-001",
+     "Regla de independencia: nadie audita su propio proceso. Ese proceso lo audita la Gerencia General o un externo."),
+    ("¿Qué hace falta para que Contabilidad facture un servicio?",
+     ["Solo la cotización aprobada", "La orden de trabajo, el informe técnico y la firma de conformidad del cliente",
+      "Un correo del supervisor"], 1, "APO-FIN-CTB-MAN-001",
+     "No se procesa ninguna factura sin orden de trabajo aprobada e informe técnico; la firma del cliente es condición previa."),
+]
+
+
+def prueba() -> None:
+    encabezado("Aprende · Autoevaluación", "Ponte a prueba",
+               f"{len(PREGUNTAS)} situaciones reales de STARTEC. Responda y al final verá su resultado con la "
+               "explicación y el documento donde está la regla. Sirve para la inducción y para repasar antes de una auditoría.")
+    ronda = st.session_state.setdefault("prueba_ronda", 0)
+    with st.form(f"prueba_{ronda}"):
+        respuestas = []
+        for i, (preg, opciones, _, _, _) in enumerate(PREGUNTAS, 1):
+            respuestas.append(st.radio(f"**{i}.** {preg}", opciones, index=None, key=f"p{ronda}_{i}"))
+        enviado = st.form_submit_button("Ver mi resultado", type="primary")
+    if not enviado:
+        return
+    if any(x is None for x in respuestas):
+        st.warning(f"Le faltan {sum(x is None for x in respuestas)} pregunta(s) por responder.")
+        return
+    aciertos = 0
+    detalle = []
+    for (preg, opciones, ok, code, expl), resp in zip(PREGUNTAS, respuestas):
+        bien = opciones.index(resp) == ok
+        aciertos += bien
+        detalle.append((bien, preg, opciones[ok], code, expl))
+    pct = round(aciertos / len(PREGUNTAS) * 100)
+    (st.success if pct >= 85 else st.warning if pct >= 60 else st.error)(
+        f"**{aciertos} de {len(PREGUNTAS)} correctas ({pct}%).** "
+        + ("Excelente: conoce las reglas clave del SGC." if pct >= 85 else
+           "Bien, pero repase las que falló." if pct >= 60 else "Conviene repasar los documentos indicados."))
+    for bien, preg, correcta, code, expl in detalle:
+        with st.container(border=True):
+            st.markdown(f'{"✅" if bien else "❌"} **{preg}**  \nRespuesta correcta: *{correcta}*  \n'
+                        f'{expl} · Ver {link(code)}', unsafe_allow_html=True)
+    if st.button("Volver a intentarlo"):
+        st.session_state["prueba_ronda"] = ronda + 1
+        st.rerun()

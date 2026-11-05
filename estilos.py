@@ -2,7 +2,7 @@
 Identidad visual: hoja de estilos y componentes HTML de la interfaz.
 
 Paleta ejecutiva
-    Tinta #0E2733 · Pizarra #274B5C · Latón #A8802B · Lienzo #EEF1F3
+    Tinta #25292D · Pizarra #2F6DAA · Latón #E8820C · Lienzo #F3F5F7
     Granate #9C2B24 · Ámbar #B4770B · Bosque #1D6B4C
 
 Tipografía
@@ -16,75 +16,79 @@ CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 /* ---- Lienzo ---- */
-.stApp { background: #EEF1F3; }
-html, body, [class*="css"] { font-family: 'Inter', system-ui, sans-serif; color: #0E2733; }
+.stApp { background: #F3F5F7; }
+html, body, [class*="css"] { font-family: 'Inter', system-ui, sans-serif; color: #25292D; }
 [data-testid="stHeader"] { background: transparent; }
 .block-container { padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1360px; }
 #MainMenu, footer { visibility: hidden; }
 
-/* ---- Cabecera institucional ---- */
+/* ---- Cabecera institucional: logo STARTEC sobre blanco + franja de marca ---- */
 .cabecera {
-  display: flex; align-items: center; gap: 24px;
-  background: #0E2733; border-left: 5px solid #A8802B;
-  padding: 22px 30px; margin-bottom: 22px;
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  background: #FFFFFF; border: 1px solid #DFE3E8; border-bottom: 0;
+  padding: 18px 26px 16px; margin-bottom: 0; position: relative;
 }
-.cabecera .logo {
-  width: __LOGO__px; height: __LOGO__px; flex: 0 0 __LOGO__px; object-fit: contain;
-  background: #FFFFFF; padding: 9px; border-radius: 3px;
-}
+.cabecera-franja { height: 5px; margin-bottom: 22px;
+  background: linear-gradient(90deg, #F9BB06 0%, #E8820C 38%, #E8820C 52%, #4488C8 52%, #2F6DAA 100%); }
+.cabecera .logo { height: 46px; width: auto; flex: 0 0 auto; object-fit: contain; }
 .cabecera .monograma {
-  display: flex; align-items: center; justify-content: center;
-  background: #A8802B; color: #0E2733; font-family: 'Archivo', sans-serif;
-  font-weight: 700; font-size: __LOGO_FUENTE__px; letter-spacing: .04em;
+  display: flex; align-items: center; justify-content: center; width: 46px; height: 46px;
+  background: #E8820C; color: #FFFFFF; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 18px;
 }
+.cabecera .divisor { width: 1px; align-self: stretch; background: #DFE3E8; }
+.cabecera .textos { min-width: 0; flex: 1 1 260px; }
 .cabecera .marca {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .22em;
-  text-transform: uppercase; color: #A8802B; display: block; margin-bottom: 5px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: .2em;
+  text-transform: uppercase; color: #2F6DAA; display: block; margin-bottom: 3px;
 }
 .cabecera h1 {
-  font-family: 'Archivo', system-ui, sans-serif; font-size: 27px; font-weight: 700;
-  color: #FFFFFF; margin: 0; letter-spacing: -.01em; line-height: 1.15;
+  font-family: 'Archivo', system-ui, sans-serif; font-size: 25px; font-weight: 700;
+  color: #25292D; margin: 0; padding: 0; letter-spacing: -.01em; line-height: 1.15;
 }
-.cabecera .empresa { color: #C7D6DE; font-size: 13px; margin: 5px 0 0; }
+.cabecera .empresa { color: #66717C; font-size: 13px; margin: 3px 0 0; }
+.cabecera .fecha { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #66717C;
+  text-align: right; line-height: 1.5; }
+.cabecera .fecha b { color: #25292D; font-weight: 500; }
+@media (max-width: 700px) { .cabecera .divisor, .cabecera .fecha { display: none; } }
 
 /* ---- Encabezado de sección sin numeración arbitraria ---- */
 .rotulo {
   display:flex; align-items:baseline; gap:12px; margin:18px 0 12px;
-  border-bottom:1px solid #DAE1E6; padding-bottom:8px;
+  border-bottom:1px solid #DFE3E8; padding-bottom:8px;
 }
 .rotulo h2 {
   font-family:'Archivo',system-ui,sans-serif; font-size:16px; font-weight:600;
-  color:#0E2733; margin:0; letter-spacing:-.01em;
+  color:#25292D; margin:0; letter-spacing:-.01em;
 }
-.rotulo p { font-size:12px; color:#6B818D; margin:0; }
+.rotulo p { font-size:12px; color:#77818B; margin:0; }
 
 /* ---- Estado vacío ---- */
 .vacio {
-  border:1px dashed #C9D4DB; background:#F7F9FA; padding:28px 24px;
-  text-align:center; color:#5F7784; font-size:13px;
+  border:1px dashed #CED4DA; background:#F8F9FA; padding:28px 24px;
+  text-align:center; color:#66717C; font-size:13px;
 }
-.vacio b { display:block; color:#274B5C; font-size:14px; margin-bottom:5px; }
+.vacio b { display:block; color:#2F6DAA; font-size:14px; margin-bottom:5px; }
 
 /* ---- Expediente ---- */
 .rejilla { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:10px; }
 .doc {
-  background:#FFF; border:1px solid #DAE1E6; border-top:3px solid #8DA0AB;
+  background:#FFF; border:1px solid #DFE3E8; border-top:3px solid #9AA3AC;
   padding:12px 14px; font-size:12.5px;
 }
-.doc .tipo { font-weight:600; color:#0E2733; display:block; margin-bottom:6px;
+.doc .tipo { font-weight:600; color:#25292D; display:block; margin-bottom:6px;
              line-height:1.3; min-height:2.6em; }
 .doc .plazo { font-family:'IBM Plex Mono',monospace; font-size:19px; font-weight:600;
               display:block; line-height:1.1; }
-.doc .fecha { font-size:11px; color:#6B818D; display:block; margin-top:3px; }
+.doc .fecha { font-size:11px; color:#77818B; display:block; margin-top:3px; }
 .doc--vigente  { border-top-color:#1D6B4C; } .doc--vigente .plazo  { color:#1D6B4C; }
 .doc--renovar  { border-top-color:#B4770B; } .doc--renovar .plazo  { color:#B4770B; }
 .doc--revision { border-top-color:#C25A17; } .doc--revision .plazo { color:#C25A17; }
 .doc--vencido  { border-top-color:#9C2B24; } .doc--vencido .plazo  { color:#9C2B24; }
-.doc--falta { border-top-color:#5F7784; background:#F2F5F7; border-style:dashed; }
-.doc--falta .plazo { color:#5F7784; font-size:14px; }
+.doc--falta { border-top-color:#66717C; background:#F3F4F6; border-style:dashed; }
+.doc--falta .plazo { color:#66717C; font-size:14px; }
 
 /* ---- Barra de cumplimiento ---- */
-.barra { height:8px; background:#E4EBEF; overflow:hidden; margin:6px 0 4px; }
+.barra { height:8px; background:#E9ECEF; overflow:hidden; margin:6px 0 4px; }
 .barra span { display:block; height:100%; background:#1D6B4C; }
 .barra--bajo span { background:#9C2B24; }
 .barra--medio span { background:#B4770B; }
@@ -92,60 +96,60 @@ html, body, [class*="css"] { font-family: 'Inter', system-ui, sans-serif; color:
 /* ---- Encabezados de sección ---- */
 .seccion {
   font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .16em;
-  text-transform: uppercase; color: #274B5C; border-bottom: 1px solid #DAE1E6;
+  text-transform: uppercase; color: #2F6DAA; border-bottom: 1px solid #DFE3E8;
   padding-bottom: 7px; margin: 6px 0 14px;
 }
-.seccion span { color: #A8802B; margin-right: 8px; }
+.seccion span { color: #C96A00; margin-right: 8px; }
 
 /* ---- Pestañas ---- */
-.stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 1px solid #DAE1E6; }
+.stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 1px solid #DFE3E8; }
 .stTabs [data-baseweb="tab"] {
   background: transparent; border-radius: 0; padding: 10px 18px;
-  font-size: 13px; font-weight: 500; color: #5F7784;
+  font-size: 13px; font-weight: 500; color: #66717C;
 }
 .stTabs [aria-selected="true"] {
-  color: #0E2733 !important; border-bottom: 2px solid #A8802B;
+  color: #25292D !important; border-bottom: 2px solid #E8820C;
   background: #FFFFFF;
 }
 
 /* ---- Indicadores ---- */
 .kpi-barra { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-.kpi { flex: 1 1 130px; background: #FFFFFF; border: 1px solid #DAE1E6;
-       border-left: 4px solid #274B5C; padding: 14px 16px; }
+.kpi { flex: 1 1 130px; background: #FFFFFF; border: 1px solid #DFE3E8;
+       border-left: 4px solid #2F6DAA; padding: 14px 16px; }
 .kpi-valor { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 28px;
-             font-weight: 600; color: #0E2733; line-height: 1.1; }
+             font-weight: 600; color: #25292D; line-height: 1.1; }
 .kpi-etiqueta { display: block; font-size: 10.5px; letter-spacing: .07em;
-                text-transform: uppercase; color: #5F7784; margin-top: 4px; }
+                text-transform: uppercase; color: #66717C; margin-top: 4px; }
 .kpi--critico { border-left-color: #9C2B24; } .kpi--critico .kpi-valor { color: #9C2B24; }
 .kpi--alerta  { border-left-color: #B4770B; } .kpi--alerta  .kpi-valor { color: #B4770B; }
 .kpi--ok      { border-left-color: #1D6B4C; } .kpi--ok      .kpi-valor { color: #1D6B4C; }
-.kpi--acento  { border-left-color: #A8802B; } .kpi--acento  .kpi-valor { color: #A8802B; }
-.kpi--historico { border-left-color: #8DA0AB; background: #F7F9FA; }
-.kpi--historico .kpi-valor { color: #5F7784; }
+.kpi--acento  { border-left-color: #E8820C; } .kpi--acento  .kpi-valor { color: #C96A00; }
+.kpi--historico { border-left-color: #9AA3AC; background: #F8F9FA; }
+.kpi--historico .kpi-valor { color: #66717C; }
 .kpi--revision { border-left-color: #C25A17; } .kpi--revision .kpi-valor { color: #C25A17; }
 
 /* ---- Fichas de colaborador ---- */
-.ficha { background:#FFF; border:1px solid #DAE1E6; border-left:4px solid #274B5C;
+.ficha { background:#FFF; border:1px solid #DFE3E8; border-left:4px solid #2F6DAA;
          padding:12px 16px; margin-bottom:8px; font-size:13px; }
-.ficha--inactivo { border-left-color:#8DA0AB; background:#F7F9FA; color:#5F7784; }
+.ficha--inactivo { border-left-color:#9AA3AC; background:#F8F9FA; color:#66717C; }
 .ficha b { font-size:14px; }
-.ficha .meta { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#5F7784; }
+.ficha .meta { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#66717C; }
 .pastilla { display:inline-block; font-size:10px; letter-spacing:.08em;
             text-transform:uppercase; padding:2px 7px; border-radius:2px; margin-left:6px; }
-.pastilla--etiqueta { background:#A8802B; color:#0E2733; }
-.pastilla--inactivo { background:#DAE1E6; color:#5F7784; }
-.kpi-pie { font-size: 11px; color: #6B818D; margin: 8px 0 18px; }
+.pastilla--etiqueta { background:#E8820C; color:#25292D; }
+.pastilla--inactivo { background:#DFE3E8; color:#66717C; }
+.kpi-pie { font-size: 11px; color: #77818B; margin: 8px 0 18px; }
 
 /* ---- Notas ---- */
 .nota {
-  background: #F5F8FA; border: 1px solid #DAE1E6; border-left: 3px solid #A8802B;
-  padding: 12px 16px; font-size: 12.5px; color: #33505F; line-height: 1.65;
+  background: #F6F8FA; border: 1px solid #DFE3E8; border-left: 3px solid #E8820C;
+  padding: 12px 16px; font-size: 12.5px; color: #3E4751; line-height: 1.65;
   margin-top: 14px;
 }
-.nota strong { color: #0E2733; }
+.nota strong { color: #25292D; }
 .nota code {
   font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;
-  background: #E4EBEF; color: #0E2733; padding: 1px 5px; border-radius: 2px;
+  background: #E9ECEF; color: #25292D; padding: 1px 5px; border-radius: 2px;
 }
 
 /* ---- Avisos ---- */
@@ -156,59 +160,79 @@ html, body, [class*="css"] { font-family: 'Inter', system-ui, sans-serif; color:
 .aviso-detalle { display: block; font-size: 12.5px; opacity: .9; margin-top: 3px; }
 .aviso-ok    { background: #EDF6F1; border-color: #1D6B4C; color: #14523A; }
 .aviso-error { background: #FBEFEE; border-color: #9C2B24; color: #7C221D; }
-.aviso-info  { background: #FBF5E9; border-color: #A8802B; color: #6F5417; }
-.lista-carga { margin: 4px 0 10px; padding: 10px 16px 10px 32px; background: #F5F8FA;
-               border: 1px solid #DAE1E6; font-size: 12.5px; color: #33505F; }
+.aviso-info  { background: #FEF5E7; border-color: #E8820C; color: #8A4B00; }
+.lista-carga { margin: 4px 0 10px; padding: 10px 16px 10px 32px; background: #F6F8FA;
+               border: 1px solid #DFE3E8; font-size: 12.5px; color: #3E4751; }
 .lista-carga li { margin: 2px 0; }
 .lista-error { color: #7C221D; }
 
 /* ---- Botones ---- */
 .stButton > button, .stDownloadButton > button {
   border-radius: 3px; font-weight: 500; font-size: 13px;
-  border: 1px solid #C9D4DB; color: #0E2733;
+  border: 1px solid #CED4DA; color: #25292D;
 }
 .stButton > button[kind="primary"] {
-  background: #0E2733; border-color: #0E2733; color: #FFFFFF;
+  background: #25292D; border-color: #25292D; color: #FFFFFF;
 }
-.stButton > button[kind="primary"]:hover { background: #274B5C; border-color: #274B5C; }
+.stButton > button[kind="primary"]:hover { background: #2F6DAA; border-color: #2F6DAA; }
 
 /* ---- Formularios y tablas ---- */
 .stTextInput input, .stDateInput input, .stTextArea textarea { font-size: 13px; }
-[data-testid="stWidgetLabel"] p { font-size: 13px; font-weight: 600; color: #0E2733; }
+[data-testid="stWidgetLabel"] p { font-size: 13px; font-weight: 600; color: #25292D; }
 [data-testid="stMetricValue"] { font-family: 'IBM Plex Mono', monospace; }
-[data-testid="stDataFrame"] { border: 1px solid #DAE1E6; }
-[data-testid="stFileUploaderDropzone"] { background: #F7F9FA; border-color: #C9D4DB; }
+[data-testid="stDataFrame"] { border: 1px solid #DFE3E8; }
+[data-testid="stFileUploaderDropzone"] { background: #F8F9FA; border-color: #CED4DA; }
 
 /* ---- Barra lateral ---- */
-[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid #DAE1E6; }
-[data-testid="stSidebar"] .stMarkdown p { font-size: 12.5px; color: #33505F; }
+[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid #DFE3E8; }
+[data-testid="stSidebar"] .stMarkdown p { font-size: 12.5px; color: #3E4751; }
 .estado-linea { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;
-                color: #33505F; padding: 3px 0; }
-.estado-linea b { color: #0E2733; }
+                color: #3E4751; padding: 3px 0; }
+.estado-linea b { color: #25292D; }
 </style>
 """
 
-CSS = (CSS.replace("__LOGO_FUENTE__", str(round(cfg.LOGO_ALTURA * 0.32)))
-          .replace("__LOGO__", str(cfg.LOGO_ALTURA)))
 
 
-def cabecera(logo_uri=None, titulo=None, unidad=None):
-    """Banda superior con el logo a la izquierda. Título y unidad cambian por sección."""
+def logo_local():
+    """Logo de STARTEC incluido en el repositorio (assets/), como data URI."""
+    import base64
+    from pathlib import Path
+    ruta = Path(__file__).parent / "assets" / "logo_startec.png"
+    if not ruta.exists():
+        return None
+    return "data:image/png;base64," + base64.b64encode(ruta.read_bytes()).decode()
+
+
+def cabecera(logo_uri=None, titulo=None, unidad=None, detalle=None):
+    """Banda superior: logo, título de la sección y fecha. Usa el logo local si no se pasa otro."""
+    logo_uri = logo_uri or logo_local()
     if logo_uri:
         bloque = f'<img class="logo" src="{logo_uri}" alt="{cfg.NOMBRE_EMPRESA}">'
     else:
-        iniciales = (cfg.NOMBRE_EMPRESA.split() or ["TH"])[0][:2].upper()
+        iniciales = (cfg.NOMBRE_EMPRESA.split() or ["ST"])[0][:2].upper()
         bloque = f'<div class="logo monograma">{iniciales}</div>'
-
+    try:
+        import reglas
+        hoy = reglas.hoy()
+    except Exception:
+        from datetime import date
+        hoy = date.today()
+    meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+             "septiembre", "octubre", "noviembre", "diciembre"]
+    fecha = f"{hoy.day} de {meses[hoy.month - 1]} de {hoy.year}"
     return f"""
     <div class="cabecera">
       {bloque}
-      <div>
+      <div class="divisor"></div>
+      <div class="textos">
         <span class="marca">{unidad or cfg.UNIDAD}</span>
         <h1>{titulo or cfg.TITULO_APP}</h1>
-        <p class="empresa">{cfg.NOMBRE_EMPRESA}</p>
+        <p class="empresa">{detalle or cfg.NOMBRE_EMPRESA}</p>
       </div>
-    </div>"""
+      <div class="fecha">Hoy<br><b>{fecha}</b></div>
+    </div>
+    <div class="cabecera-franja"></div>"""
 
 
 def rotulo(titulo, ayuda=""):
