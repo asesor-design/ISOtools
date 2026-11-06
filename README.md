@@ -16,7 +16,8 @@ Une dos herramientas que antes estaban separadas:
 | | **Listado maestro** | Todos los documentos con versión, dueño y próxima revisión (EST-SGC-DOC-REG-001), más los códigos citados que no existen. |
 | | **Registros** | Cada registro exigido, quién lo archiva y su retención (7.5.3). |
 | | **Códigos** | Descifra cualquier código y propone el siguiente libre para un documento nuevo. |
-| Gestión | **Riesgos** | Matriz unificada + riesgos de cada procedimiento, con mapa de calor P × I y filtros por proceso, nivel y ejecutor. |
+| Gestión | **No conformidades** | Registro EST-SGC-NCF-REG-001: cualquiera reporta; cada caso avanza paso a paso (5 porqués, acción correctiva, aprobación, implementación, verificación de eficacia a los 30-90 días, cierre o reapertura) con control de plazos. Calcula solos los indicadores de cierre y eficacia. |
+| | **Riesgos** | Matriz unificada + riesgos de cada procedimiento, con mapa de calor P × I y filtros por proceso, nivel y ejecutor. |
 | | **Indicadores y revisión** | Los 18 indicadores de los procedimientos con su meta; los que el sistema puede medir muestran su valor. Calendario de revisión documental. |
 | | **Mi cargo** | Para cada cargo: rol en el SGC, políticas, tareas, registros, riesgos que controla y certificados que necesita. Todo leído de los documentos. |
 | Aprende | **ISO 9001 en STARTEC** | El ciclo Planificar-Hacer-Verificar-Actuar y, por cada capítulo de la norma, qué pide en lenguaje simple y qué documentos de STARTEC lo cumplen. Útil para preparar auditorías. |
@@ -53,6 +54,8 @@ estilos.py              Identidad visual
 notificar.py            Recordatorios por correo (GitHub Actions)
 .github/workflows/      Ejecución diaria de los recordatorios
 acceso.py               Contraseña de ingreso
+mejora.py               No conformidades: flujo, plazos e indicadores (pestaña «No conformidades» del Sheet)
+pagina_mejora.py        Página de No conformidades
 originales.py           Descarga de los originales de Drive con la cuenta de servicio
 assets/                 Logo e icono de STARTEC
 docs/                   Notas de diseño de Personal habilitado

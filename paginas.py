@@ -143,6 +143,18 @@ def hay_google() -> bool:
         return False
 
 
+def nc_resumen():
+    """(DataFrame, indicadores) de no conformidades, o (None, None) si no hay conexión."""
+    try:
+        import mejora as mj
+        if not mj.disponible():
+            return None, None
+        df = mj.leer()
+        return df, mj.indicadores(df)
+    except Exception:
+        return None, None
+
+
 def personal_habilitado() -> dict | None:
     """Indicadores de Personal habilitado si hay conexión con Google; None si no."""
     if not hay_google():
@@ -203,7 +215,7 @@ TAREAS = [
     ("¿Cómo está el expediente de alguien?", "Vencimientos y lo que le falta.", "hab_control", None),
     ("Saber qué me toca según mi cargo", "Políticas, tareas, registros y riesgos.", "cargo", None),
     ("Evaluar o aprobar un proveedor", "Criterios, puntajes y quién aprueba.", "doc", "APO-COM-EVP-PRO-001"),
-    ("Reportar algo que no se cumplió", "No conformidad: se reporta en 3 días hábiles.", "doc", "EST-SGC-NCF-PRO-001"),
+    ("Reportar algo que no se cumplió", "No conformidad: se reporta en 3 días hábiles.", "nc", None),
     ("Contratar a una persona", "Vacante, entrevistas, contrato e inducción.", "doc", "APO-THU-SEL-PRO-001"),
     ("Consultar los riesgos de un proceso", "Mapa de calor y controles por etapa.", "riesgos", None),
     ("Preparar una auditoría interna", "Programa anual y regla de independencia.", "doc", "EST-SGC-AUD-PRO-001"),
@@ -290,6 +302,13 @@ def inicio() -> None:
         if sin_fecha:
             avisos.append(("alerta", f"{len(sin_fecha)} documento(s) sin fecha de aprobación",
                            "Registre la fecha para programar su revisión.", "indicadores"))
+        nc_df, nc_ind = nc_resumen()
+        if nc_ind and nc_ind["con_alerta"]:
+            avisos.insert(0, ("critico", f'{nc_ind["con_alerta"]} no conformidad(es) con plazo vencido',
+                              "Acciones vencidas, registro tardío o verificación pendiente.", "nc"))
+        elif nc_ind and nc_ind["abiertas"]:
+            avisos.append(("info", f'{nc_ind["abiertas"]} no conformidad(es) abiertas',
+                           f'{nc_ind["altas_abiertas"]} de gravedad ALTA.', "nc"))
         import originales as og
         est_og = og.estado()
         if est_og["motivo"] == "sin_permiso":
@@ -439,6 +458,8 @@ def ficha(code: str) -> None:
     if d.padre in r.docs:
         with b2:
             ir_doc(d.padre, label="↑ Documento superior")
+    st.page_link(P["nc"], label="¿Algo de este documento no se está cumpliendo? Repórtelo como no conformidad",
+                 icon=":material/report:", query_params={"doc_nc": code})
     if code in ("APO-THU-CER-INS-001", "APO-THU-GDR-MAT-001"):
         with b4:
             st.page_link(P["hab_control"], label="Ver el estado real del personal →")
@@ -548,9 +569,9 @@ def riesgos() -> None:
                 "Use los filtros para ver los riesgos de su proceso o los controles que usted ejecuta.",
                 "Si un control falla, se trata como no conformidad (EST-SGC-NCF-PRO-001)."])
     c1, c2, c3 = st.columns(3)
-    procs = c1.multiselect("Proceso", sorted({x["Proceso"] for x in todos}))
+    procs = c1.multiselect("Proceso", sorted({x["Proceso"] for x in todos}), placeholder="Todos")
     niveles = c2.pills("Nivel", ["ALTO", "MEDIO", "BAJO"], selection_mode="multi")
-    ejec = c3.multiselect("Ejecutor del control", sorted({x["Ejecutor"] for x in todos}))
+    ejec = c3.multiselect("Ejecutor del control", sorted({x["Ejecutor"] for x in todos}), placeholder="Todos")
     sel = [x for x in todos if (not procs or x["Proceso"] in procs) and (not niveles or x["Nivel"] in niveles)
            and (not ejec or x["Ejecutor"] in ejec)]
 
@@ -604,7 +625,12 @@ def indicadores() -> None:
     pct_cal = round(al_dia / len(con_fecha) * 100) if con_fecha else 0
     m = personal_habilitado()
 
+    nc_df, nc_ind = nc_resumen()
     medidos = {"Cumplimiento del calendario de revisión": f"{pct_cal}%",
+               "Tiempo promedio de cierre": (f'{nc_ind["tiempo_cierre"]} días' if nc_ind and nc_ind["tiempo_cierre"] is not None
+                                             else "Sin casos cerrados" if nc_ind else "Sin conexión"),
+               "Eficacia de las acciones correctivas": (f'{nc_ind["eficacia"]}%' if nc_ind and nc_ind["eficacia"] is not None
+                                                         else "Sin verificaciones" if nc_ind else "Sin conexión"),
                "% de cumplimiento documental": f'{m["cobertura"]["porcentaje"]}%' if m else "Sin conexión"}
     filas = sgc.indicadores(r)
     for f in filas:
@@ -632,6 +658,9 @@ def indicadores() -> None:
                 '<p>Cláusula 9.3 · todo lo que pide el acta EST-DIR-PLA-REG-001 en un solo archivo</p></div>',
                 unsafe_allow_html=True)
     hojas = paquete_sgc()
+    if nc_df is not None and not nc_df.empty:
+        import mejora as mj
+        hojas["No conformidades"] = nc_df[mj.COLUMNAS]
     if m:
         hojas = {"Personal habilitado": pd.DataFrame([{
             "Colaboradores activos": m["cobertura"]["personas"], "Con expediente completo": m["cobertura"]["personas_ok"],
@@ -661,6 +690,17 @@ def mi_cargo() -> None:
     if x["rol"]:
         st.info(f"**Rol en el SGC:** {x['rol']}")
 
+    nc_df, _ = nc_resumen()
+    mias = nc_df[(nc_df["Responsable"] == cargo) & nc_df["Abierta"]] if nc_df is not None and not nc_df.empty else None
+    if mias is not None and len(mias):
+        with st.container(border=True):
+            st.markdown(f"**Acciones correctivas abiertas a cargo de {cargo}: {len(mias)}**")
+            for _, f in mias.iterrows():
+                alerta = f" · :red[{f['Alertas'][0]}]" if f["Alertas"] else ""
+                st.page_link(P["nc"], label=f"{f['ID']} · {f['Proxima_Accion']} · plazo {f['Fecha_Compromiso'] or '—'}",
+                             query_params={"nc": f["ID"]}, icon=":material/report:")
+                if alerta:
+                    st.markdown(alerta)
     t1, t2, t3, t4, t5, t6 = st.tabs([
         f"Políticas ({len(x['politicas'])})", f"Tareas ({len(x['tareas'])})", f"Registros ({len(x['registros'])})",
         f"Riesgos ({len(x['riesgos'])})", "Certificados", f"Para todo el personal ({len(x['todos'])})"])

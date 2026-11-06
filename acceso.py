@@ -32,7 +32,12 @@ def _clave_configurada() -> str:
 def verificar() -> None:
     """Muestra el ingreso y detiene la página hasta que la clave sea correcta."""
     if st.session_state.get("acceso_ok"):
+        destino = st.session_state.pop("acceso_destino", None)
+        if destino and not st.query_params.to_dict():
+            st.query_params.update(destino)
         return
+    if st.query_params.to_dict():
+        st.session_state["acceso_destino"] = st.query_params.to_dict()
 
     st.markdown(estilos.cabecera(None, titulo="ISOtools",
                                  unidad="Sistema de Gestión de Calidad · ISO 9001:2015"),

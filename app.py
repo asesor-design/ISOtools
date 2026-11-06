@@ -15,6 +15,7 @@ import streamlit as st
 import acceso
 import control_documental as cd
 import estilos
+import pagina_mejora as pm
 import paginas as pg
 
 RAIZ = Path(__file__).parent
@@ -95,12 +96,15 @@ ol.guia { margin:0; padding-left:20px; } ol.guia li { margin:4px 0; font-size:14
 .ciclo-fase b { display:block; font-family:'Archivo',sans-serif; font-size:19px; color:#25292D; }
 .ciclo-fase small { color:#2F6DAA; font-weight:600; } .ciclo-fase p { font-size:13px; color:#3E4751; margin:4px 0 0; }
 .termino b { font-size:15px; color:#25292D; } .termino p { margin:4px 0; font-size:13.5px; color:#3E4751; } .termino small { color:#77818B; }
+.etapas { display:flex; gap:6px; margin:10px 0 14px; flex-wrap:wrap; }
+.etapa { flex:1 1 120px; padding:8px 10px; background:#FFFFFF; border:1px solid #DFE3E8; font-size:12.5px; color:#77818B; }
+.etapa span { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#E9ECEF;
+              color:#66717C; font-size:11px; font-weight:600; margin-right:6px; }
+.etapa.hecha { color:#1D6B4C; border-color:#BFDCCB; } .etapa.hecha span { background:#1D6B4C; color:#FFFFFF; }
+.etapa.actual { color:#25292D; border:2px solid #E8820C; font-weight:600; } .etapa.actual span { background:#E8820C; color:#FFFFFF; }
 [data-testid="stSidebarHeader"] img { height:44px !important; }
 [data-testid="stExpander"] details { background:#FFFFFF; }
 </style>""", unsafe_allow_html=True)
-
-# Nada se muestra sin la contraseña (secreto [acceso] clave)
-acceso.verificar()
 
 P = pg.P
 P.update({
@@ -111,6 +115,7 @@ P.update({
     "codigos": st.Page(pg.codigos, title="Códigos", icon=":material/tag:", url_path="codigos"),
     "riesgos": st.Page(pg.riesgos, title="Riesgos", icon=":material/warning:", url_path="riesgos"),
     "indicadores": st.Page(pg.indicadores, title="Indicadores y revisión", icon=":material/monitoring:", url_path="indicadores"),
+    "nc": st.Page(pm.no_conformidades, title="No conformidades", icon=":material/report:", url_path="no-conformidades"),
     "cargo": st.Page(pg.mi_cargo, title="Mi cargo", icon=":material/badge:", url_path="mi-cargo"),
     "hab_control": st.Page(cd.pagina_control, title="Panel de control", icon=":material/verified_user:", url_path="personal"),
     "hab_cargar": st.Page(cd.pagina_documentos, title="Cargar certificados", icon=":material/upload_file:", url_path="cargar"),
@@ -124,11 +129,15 @@ P.update({
 nav = st.navigation({
     "": [P["inicio"]],
     "Sistema documental": [P["documentos"], P["listado"], P["registros"], P["codigos"]],
-    "Gestión": [P["riesgos"], P["indicadores"], P["cargo"]],
+    "Gestión": [P["nc"], P["riesgos"], P["indicadores"], P["cargo"]],
     "Personal habilitado": [P["hab_control"], P["hab_cargar"], P["hab_equipo"]],
     "Aprende": [P["iso"], P["glosario"], P["prueba"]],
     "Soporte": [P["ayuda"]],
-}, expanded=True)
+}, expanded=True, position="sidebar" if st.session_state.get("acceso_ok") else "hidden")
+
+# Nada se muestra sin la contraseña (secreto [acceso] clave). La navegación se declara
+# antes para que, tras ingresar, se abra la página del enlace y no siempre Inicio.
+acceso.verificar()
 
 # Búsqueda global: disponible desde cualquier página
 with st.sidebar.form("buscar", clear_on_submit=True, border=False):
@@ -143,8 +152,8 @@ SECCIONES = {
     "Personal habilitado": (["hab_control", "hab_cargar", "hab_equipo"],
                             "Gestión de Talento Humano · APO-THU-CER-INS-001", "Personal habilitado",
                             "Certificados y documentos habilitantes de los colaboradores"),
-    "Gestión": (["riesgos", "indicadores", "cargo"], "Sistema de Gestión de Calidad · ISO 9001:2015",
-                "Gestión del SGC", "Riesgos, indicadores y responsabilidades"),
+    "Gestión": (["nc", "riesgos", "indicadores", "cargo"], "Sistema de Gestión de Calidad · ISO 9001:2015",
+                "Gestión del SGC", "No conformidades, riesgos, indicadores y responsabilidades"),
     "Aprende": (["iso", "glosario", "prueba"], "Formación · ISO 9001:2015", "Aprende el SGC",
                 "La norma explicada con los documentos de STARTEC"),
     "Sistema documental": (["documentos", "listado", "registros", "codigos"], "Sistema de Gestión de Calidad · ISO 9001:2015",
