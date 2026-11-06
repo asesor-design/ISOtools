@@ -53,6 +53,7 @@ estilos.py              Identidad visual
 notificar.py            Recordatorios por correo (GitHub Actions)
 .github/workflows/      Ejecución diaria de los recordatorios
 acceso.py               Contraseña de ingreso
+originales.py           Descarga de los originales de Drive con la cuenta de servicio
 assets/                 Logo e icono de STARTEC
 docs/                   Notas de diseño de Personal habilitado
 ```
@@ -71,6 +72,18 @@ clave = "una-clave-larga-y-dificil"
 - Tras 5 intentos fallidos el ingreso se bloquea 60 segundos.
 - Para cambiar la clave basta con editar el secreto; todos deberán volver a ingresar.
 - Cámbiala cuando alguien con acceso deje la empresa.
+
+## Archivos originales de Drive
+
+Los Word y Excel originales viven en la carpeta **iso** de Google Drive, que no se comparte con cada
+colaborador. La app los descarga con su cuenta de servicio y los entrega a quien entró con la contraseña
+(botón **Descargar original** en la ficha de cada documento). Para activarlo, una sola vez:
+
+1. Copie el `client_email` del bloque `[gcp_service_account]` de los secretos.
+2. Abra la carpeta iso en Drive ▸ **Compartir** ▸ agregue ese correo como **Lector** (sin notificar).
+
+La página **Ayuda ▸ Archivos originales** muestra si la conexión funciona. Mientras no esté activa,
+el botón abre Drive y solo sirve a quien tenga acceso a la carpeta.
 
 ## Publicar en Streamlit Community Cloud
 

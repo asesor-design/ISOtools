@@ -159,6 +159,42 @@ def personal_habilitado() -> dict | None:
         return None
 
 
+
+def boton_original(d, contenedor) -> None:
+    """
+    Descarga del original controlado. La app lo trae de Drive con su cuenta de servicio,
+    así funciona para cualquiera que entró con la contraseña. Si la cuenta aún no tiene
+    acceso a la carpeta iso, ofrece el enlace a Drive (solo sirve a quien tenga permiso).
+    """
+    import originales as og
+    est = og.estado()
+    if est["ok"] and d.drive:
+        try:
+            with st.spinner("Preparando el original…"):
+                datos = og.contenido(d.drive)
+            contenedor.download_button(
+                f"Descargar original (.{d.formato})", data=datos, type="primary", width="stretch",
+                file_name=f"{d.codigo}.{d.formato}", mime=og.MIME.get(d.formato, "application/octet-stream"),
+                icon=":material/download:", on_click="ignore",
+                help="Archivo Word/Excel vigente de la carpeta iso. Ábralo para llenar, firmar o imprimir.")
+            return
+        except Exception as e:
+            contenedor.link_button(f"Abrir en Drive (.{d.formato})", d.drive_url, type="primary", width="stretch",
+                                   icon=":material/open_in_new:")
+            st.warning(f"No se pudo traer el archivo desde Drive ({str(e)[:120]}). Pruebe de nuevo en un momento "
+                       "o use «Abrir en Drive».")
+            return
+    contenedor.link_button(f"Abrir en Drive (.{d.formato})", d.drive_url, type="primary", width="stretch",
+                           icon=":material/open_in_new:",
+                           help="Solo abre si su cuenta de Google tiene acceso a la carpeta iso.")
+    if est["motivo"] == "sin_permiso":
+        with st.expander(":material/lock: ¿Le aparece «Necesitas acceso» en Drive? Así se soluciona"):
+            st.markdown(og.instrucciones_permiso())
+    elif est["motivo"] == "sin_google":
+        st.caption("Para que todos puedan descargar los originales, configure la cuenta de servicio de Google "
+                   "en los secretos de la app y comparta con ella la carpeta iso (vea Ayuda ▸ Archivos originales).")
+
+
 # ------------------------------------------------------------------------------ INICIO
 TAREAS = [
     ("Ejecutar un servicio en campo", "De la orden de trabajo a la firma del cliente.", "doc", "MIS-OPS-EJE-PRO-001"),
@@ -254,6 +290,11 @@ def inicio() -> None:
         if sin_fecha:
             avisos.append(("alerta", f"{len(sin_fecha)} documento(s) sin fecha de aprobación",
                            "Registre la fecha para programar su revisión.", "indicadores"))
+        import originales as og
+        est_og = og.estado()
+        if est_og["motivo"] == "sin_permiso":
+            avisos.append(("critico", "Los originales de Drive no se pueden descargar",
+                           "Falta compartir la carpeta iso con la cuenta de servicio de la app.", "ayuda"))
         faltan = r.sin_archivo()
         if faltan:
             avisos.append(("info", f"{len(faltan)} código(s) citado(s) que no existen",
@@ -391,8 +432,7 @@ def ficha(code: str) -> None:
             f'<div class="flujo-paso"><span>{i}</span>{html.escape(t)}</div>' for i, t in enumerate(lista_pasos, 1))
             + "</div>", unsafe_allow_html=True)
     b1, b2, b3, b4 = st.columns([1.5, 1.1, 1.1, 1.6])
-    b1.link_button(f"Abrir original en Drive (.{d.formato})", d.drive_url, type="primary", width="stretch",
-                   icon=":material/open_in_new:")
+    boton_original(d, b1)
     b3.download_button("Descargar texto", data=(f"# {d.codigo} · {d.titulo}\n\nVersión {d.version}\n\n" + d.body).encode(),
                        file_name=f"{d.codigo}.md", mime="text/markdown", width="stretch", icon=":material/download:",
                        help="Copia de consulta en Markdown. Recuerde: toda copia descargada es «no controlada».")
@@ -444,7 +484,7 @@ def listado() -> None:
                "Versión vigente, dueño, frecuencia y próxima revisión de cada documento. Seleccione una fila para abrirlo.",
                ["Filtre por macroproceso o tipo con los botones de arriba; puede marcar varios.",
                 "Toque una fila para abrir la ficha completa del documento.",
-                "El enlace «Drive ↗» abre el archivo original controlado.",
+                "En la ficha, el botón «Descargar original» entrega el Word o Excel vigente.",
                 "Descargue el listado en Excel para auditorías o para la revisión por la dirección."])
     c1, c2 = st.columns(2)
     macros = c1.pills("Macroproceso", MACRO_ORDER, format_func=lambda m: f"{m} · {MACROS[m]}", selection_mode="multi")
@@ -454,11 +494,10 @@ def listado() -> None:
     docs = [d for d in r.ordenados() if (not macros or d.macro in macros) and (not tipos or d.tipo in tipos)]
     df = pd.DataFrame([{"Código": d.codigo, "Documento": d.titulo, "Tipo": d.tipo_nombre, "Versión": d.version,
                         "Dueño": d.dueno, "Próxima revisión": cal[d.codigo]["Próxima revisión"],
-                        "Estado de revisión": cal[d.codigo]["Estado"], "Original": d.drive_url} for d in docs])
+                        "Estado de revisión": cal[d.codigo]["Estado"]} for d in docs])
     ev = st.dataframe(df, hide_index=True, width="stretch", on_select="rerun", selection_mode="single-row",
                       height=min(36 * (len(df) + 1) + 4, 760),
-                      column_config={"Original": st.column_config.LinkColumn("Original", display_text="Drive ↗"),
-                                     "Próxima revisión": st.column_config.DateColumn(format="DD/MM/YYYY")})
+                      column_config={"Próxima revisión": st.column_config.DateColumn(format="DD/MM/YYYY")})
     a, b = st.columns([3, 1.2], vertical_alignment="center")
     a.caption(f"{len(docs)} de {len(r.docs)} documentos")
     b.download_button("Descargar en Excel", data=a_excel({"Listado maestro": df}), width="stretch",
@@ -764,6 +803,22 @@ def ayuda() -> None:
 | Facturación, pagos, soportes contables | **Contabilidad** |
 | Aprobación de presupuestos, proveedores nuevos, recursos | **Gerencia General** |
 """)
+    st.subheader("Archivos originales (Word y Excel)", anchor=False)
+    import originales as og
+    est = og.estado()
+    if est["ok"]:
+        st.success("Conectado: cualquiera que entre con la contraseña puede descargar los originales desde la "
+                   "ficha de cada documento, botón «Descargar original».")
+    elif est["motivo"] == "sin_permiso":
+        st.error("La app no puede leer la carpeta iso todavía.")
+        st.markdown(og.instrucciones_permiso())
+    elif est["motivo"] == "sin_google":
+        st.warning("Falta la cuenta de servicio de Google en los secretos de la app (bloque `[gcp_service_account]`). "
+                   "Es la misma que usa Personal habilitado. Mientras tanto, los botones abren Drive y solo "
+                   "funcionan para quien tenga acceso a la carpeta.")
+    else:
+        st.warning("No se pudo comprobar el acceso a Drive en este momento. Recargue la página en unos minutos.")
+        st.caption(est["detalle"])
     st.link_button("Abrir la carpeta iso en Google Drive", DRIVE_FOLDER)
 
 
